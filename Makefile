@@ -30,7 +30,7 @@ BUSYBOX_DL_URL=$(BUSYBOX_DL_PREFIX)/$(BUSYBOX_DL_BASENAME)-$(BUSYBOX_DL_VERSION)
 BUSYBOX_DL_FILE=$(DL_DIR)/$(BUSYBOX_DL_BASENAME)-$(BUSYBOX_DL_VERSION).$(BUSYBOX_DL_SUFFIX)
 BUSYBOX_BUILD_DIR=$(BUILD_DIR)/$(BUSYBOX_DL_BASENAME)-$(BUSYBOX_DL_VERSION)
 
-all: pre dl extract build
+all: pre dl extract build image
 
 $(DL_DIR):
 	mkdir -p '$@'
@@ -71,7 +71,8 @@ extract: dl $(LINUX_BUILD_DIR)/Makefile $(MUSL_BUILD_DIR)/Makefile $(BUSYBOX_BUI
 
 $(LINUX_BUILD_DIR)/vmlinux:
 	cp -v '$(CFG_DIR)/linux.config' '$(LINUX_BUILD_DIR)/.config'
-	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH=$(shell uname -m)
+	make -C '$(LINUX_BUILD_DIR)' oldconfig
+	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH=$(shell uname -m) bzImage
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(shell uname -m)' INSTALL_HDR_PATH='$(ROOTFS_DIR)/usr' headers_install
 
 $(MUSL_BUILD_DIR)/lib/libc.so:
@@ -85,7 +86,14 @@ $(BUSYBOX_BUILD_DIR)/busybox:
 	sed -i 's|^.*\(CONFIG_PREFIX\).*|\1="$(ROOTFS_DIR)"|g' '$(BUSYBOX_BUILD_DIR)/.config'
 	sed -i 's|^.*\(CONFIG_EXTRA_CFLAGS\).*|\1="-I$(ROOTFS_DIR)/usr/include -nostdinc -Wno-parentheses -Wno-strict-prototypes -Wno-undef"|g' '$(BUSYBOX_BUILD_DIR)/.config'
 	sed -i 's|^.*\(CONFIG_EXTRA_LDFLAGS\).*|\1="-L$(ROOTFS_DIR)/usr/lib -dynamic-linker=$(ROOTFS_DIR)/lib/ld-musl-$(shell uname -m).so.1 -nostdlib"|g' '$(BUSYBOX_BUILD_DIR)/.config'
+	make -C '$(BUSYBOX_BUILD_DIR)' oldconfig
 	make -C '$(BUSYBOX_BUILD_DIR)' -j$(BUILDJOBS) ARCH=$(shell uname -m) V=1 all
 	make -C '$(BUSYBOX_BUILD_DIR)' -j$(BUILDJOBS) ARCH=$(shell uname -m) install
 
 build: extract $(LINUX_BUILD_DIR)/vmlinux $(MUSL_BUILD_DIR)/lib/libc.so $(BUSYBOX_BUILD_DIR)/busybox
+
+image: build
+	cd '$(ROOTFS_DIR)' && find . -print0 | cpio --null -ov --format=newc | gzip -9 > '$(THIS_DIR)/initramfs.cpio.gz'
+
+qemu:
+	qemu-system-x86_64 -kernel '$(LINUX_BUILD_DIR)/arch/x86_64/boot/bzImage' -initrd '$(THIS_DIR)/initramfs.cpio.gz' -nographic -append "console=ttyAMA0" -enable-kvm -D ./qemu.log
