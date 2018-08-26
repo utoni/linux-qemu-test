@@ -5,6 +5,7 @@ DL_DIR=$(THIS_DIR)/dl
 BUILD_DIR=$(THIS_DIR)/build
 ROOTFS_DIR=$(THIS_DIR)/rootfs
 CFG_DIR=$(THIS_DIR)/config
+SCRIPT_DIR=$(THIS_DIR)/scripts
 
 LINUX_DL_PREFIX=https://cdn.kernel.org/pub/linux/kernel/v4.x
 LINUX_DL_BASENAME=linux
@@ -72,6 +73,8 @@ extract: dl $(LINUX_BUILD_DIR)/Makefile $(MUSL_BUILD_DIR)/Makefile $(BUSYBOX_BUI
 $(LINUX_BUILD_DIR)/vmlinux:
 	cp -v '$(CFG_DIR)/linux.config' '$(LINUX_BUILD_DIR)/.config'
 	make -C '$(LINUX_BUILD_DIR)' oldconfig
+	make -C '$(LINUX_BUILD_DIR)' x86_64_defconfig
+	make -C '$(LINUX_BUILD_DIR)' kvmconfig
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH=$(shell uname -m) bzImage
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(shell uname -m)' INSTALL_HDR_PATH='$(ROOTFS_DIR)/usr' headers_install
 
@@ -79,7 +82,6 @@ $(MUSL_BUILD_DIR)/lib/libc.so:
 	cd '$(MUSL_BUILD_DIR)' && ./configure --prefix='/usr'
 	make -C '$(MUSL_BUILD_DIR)' -j$(BUILDJOBS) ARCH=$(shell uname -m) V=1 all
 	make -C '$(MUSL_BUILD_DIR)' -j$(BUILDJOBS) ARCH=$(shell uname -m) DESTDIR='$(ROOTFS_DIR)' install
-	rm -f '$(ROOTFS_DIR)/usr/bin/musl-gcc'
 
 $(BUSYBOX_BUILD_DIR)/busybox:
 	cp -v '$(CFG_DIR)/busybox.config' '$(BUSYBOX_BUILD_DIR)/.config'
@@ -93,7 +95,15 @@ $(BUSYBOX_BUILD_DIR)/busybox:
 build: extract $(LINUX_BUILD_DIR)/vmlinux $(MUSL_BUILD_DIR)/lib/libc.so $(BUSYBOX_BUILD_DIR)/busybox
 
 image: build
+	cp -v '$(SCRIPT_DIR)/init.rootfs' '$(ROOTFS_DIR)/init'
+	chmod 0755 '$(ROOTFS_DIR)/init'
 	cd '$(ROOTFS_DIR)' && find . -print0 | cpio --null -ov --format=newc | gzip -9 > '$(THIS_DIR)/initramfs.cpio.gz'
 
-qemu:
+force-rebuild:
+	rm -rf '$(ROOTFS_DIR)'
+	rm -f $(LINUX_BUILD_DIR)/vmlinux $(MUSL_BUILD_DIR)/lib/libc.so $(BUSYBOX_BUILD_DIR)/busybox
+
+image-rebuild: force-rebuild build
+
+qemu: image
 	qemu-system-x86_64 -kernel '$(LINUX_BUILD_DIR)/arch/x86_64/boot/bzImage' -initrd '$(THIS_DIR)/initramfs.cpio.gz' -nographic -append "console=ttyAMA0" -enable-kvm -D ./qemu.log
