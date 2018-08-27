@@ -1,7 +1,8 @@
 Mini Linux
 ++++++++++
 
-Developed for fast testing Linux Kernel/Module code modifications.
-
+What? Mainline/Stable Linux Kernel + musl + BusyBox
+Why? Fast testing Linux Kernel/Module code modifications.
+How? see `make help`
 
 Inspired by: https://gist.github.com/chrisdone/02e165a0004be33734ac2334f215380e

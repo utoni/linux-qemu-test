@@ -144,3 +144,19 @@ qemu-console: image
 qemu-net: image
 	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -vga qxl -display sdl \
 		-net nic,macaddr=$(NET_HWADDR) -net tap,ifname=linux-qemu-test,br=$(NET_BRIDGE) -append 'net $(if $(NET_IP4),ip4)'
+
+define HELP_PREFIX
+@echo "\t make $1\t- $2"
+endef
+
+help:
+	@echo 'Available Makefile targets are:'
+	$(call HELP_PREFIX,build,build LinuxKernel/musl/BusyBox)
+	$(call HELP_PREFIX,image,create initramfs cpio archive)
+	$(call HELP_PREFIX,image-rebuild,force recreation of rootfs)
+	$(call HELP_PREFIX,image-reinstall,force reinstallation of LinuxKernel/musl/BusyBox into rootfs)
+	$(call HELP_PREFIX,image-repack,force initramfs cpio archive recreation)
+	$(call HELP_PREFIX,qemu,testing your kernel/initramfs combination with QEMU)
+	$(call HELP_PREFIX,qemu-console,testing your kernel/initramfs combination with [n]curses QEMU)
+	$(call HELP_PREFIX,qemu-net,testing your kernel/initramfs combination with QEMU and network support through TAP)
+	@echo "\t\tAdditional options: NET_BRIDGE, NET_IP4"
