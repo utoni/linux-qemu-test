@@ -30,6 +30,8 @@ BUSYBOX_DL_SUFFIX=tar.bz2
 BUSYBOX_DL_URL=$(BUSYBOX_DL_PREFIX)/$(BUSYBOX_DL_BASENAME)-$(BUSYBOX_DL_VERSION).$(BUSYBOX_DL_SUFFIX)
 BUSYBOX_DL_FILE=$(DL_DIR)/$(BUSYBOX_DL_BASENAME)-$(BUSYBOX_DL_VERSION).$(BUSYBOX_DL_SUFFIX)
 BUSYBOX_BUILD_DIR=$(BUILD_DIR)/$(BUSYBOX_DL_BASENAME)-$(BUSYBOX_DL_VERSION)
+BUSYBOX_CFLAGS=-no-pie -I$(ROOTFS_DIR)/include -I$(ROOTFS_DIR)/usr/include -specs $(ROOTFS_DIR)/lib/musl-gcc.specs -Wno-parentheses -Wno-strict-prototypes -Wno-undef
+BUSYBOX_LDFLAGS=-L$(ROOTFS_DIR)/lib -L$(ROOTFS_DIR)/usr/lib
 
 all: pre dl extract build image
 
@@ -79,18 +81,15 @@ $(LINUX_BUILD_DIR)/vmlinux:
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(shell uname -m)' INSTALL_HDR_PATH='$(ROOTFS_DIR)/usr' headers_install
 
 $(MUSL_BUILD_DIR)/lib/libc.so:
-	cd '$(MUSL_BUILD_DIR)' && ./configure --prefix='/usr'
+	cd '$(MUSL_BUILD_DIR)' && ./configure --prefix='$(ROOTFS_DIR)'
 	make -C '$(MUSL_BUILD_DIR)' -j$(BUILDJOBS) ARCH=$(shell uname -m) V=1 all
-	make -C '$(MUSL_BUILD_DIR)' -j$(BUILDJOBS) ARCH=$(shell uname -m) DESTDIR='$(ROOTFS_DIR)' install
+	make -C '$(MUSL_BUILD_DIR)' -j$(BUILDJOBS) ARCH=$(shell uname -m) install
 
 $(BUSYBOX_BUILD_DIR)/busybox:
 	cp -v '$(CFG_DIR)/busybox.config' '$(BUSYBOX_BUILD_DIR)/.config'
-	sed -i 's|^.*\(CONFIG_PREFIX\).*|\1="$(ROOTFS_DIR)"|g' '$(BUSYBOX_BUILD_DIR)/.config'
-	sed -i 's|^.*\(CONFIG_EXTRA_CFLAGS\).*|\1="-I$(ROOTFS_DIR)/usr/include -nostdinc -Wno-parentheses -Wno-strict-prototypes -Wno-undef"|g' '$(BUSYBOX_BUILD_DIR)/.config'
-	sed -i 's|^.*\(CONFIG_EXTRA_LDFLAGS\).*|\1="-L$(ROOTFS_DIR)/usr/lib -dynamic-linker=$(ROOTFS_DIR)/lib/ld-musl-$(shell uname -m).so.1 -nostdlib"|g' '$(BUSYBOX_BUILD_DIR)/.config'
 	make -C '$(BUSYBOX_BUILD_DIR)' oldconfig
-	make -C '$(BUSYBOX_BUILD_DIR)' -j$(BUILDJOBS) ARCH=$(shell uname -m) V=1 all
-	make -C '$(BUSYBOX_BUILD_DIR)' -j$(BUILDJOBS) ARCH=$(shell uname -m) install
+	make -C '$(BUSYBOX_BUILD_DIR)' -j$(BUILDJOBS) CONFIG_EXTRA_CFLAGS='$(BUSYBOX_CFLAGS)' CONFIG_EXTRA_LDFLAGS='$(BUSYBOX_LDFLAGS)' CONFIG_PREFIX='$(ROOTFS_DIR)' ARCH=$(shell uname -m) V=1 all
+	make -C '$(BUSYBOX_BUILD_DIR)' -j$(BUILDJOBS) CONFIG_EXTRA_CFLAGS='$(BUSYBOX_CFLAGS)' CONFIG_EXTRA_LDFLAGS='$(BUSYBOX_LDFLAGS)' CONFIG_PREFIX='$(ROOTFS_DIR)' ARCH=$(shell uname -m) install
 
 build: extract $(LINUX_BUILD_DIR)/vmlinux $(MUSL_BUILD_DIR)/lib/libc.so $(BUSYBOX_BUILD_DIR)/busybox
 
