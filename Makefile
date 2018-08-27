@@ -102,9 +102,12 @@ $(MUSL_TARGET):
 
 $(BUSYBOX_TARGET):
 	cp -v '$(CFG_DIR)/busybox.config' '$(BUSYBOX_BUILD_DIR)/.config'
+	sed -i 's,^\(CONFIG_EXTRA_CFLAGS[ ]*=\).*,\1"$(BUSYBOX_CFLAGS)",g'   '$(BUSYBOX_BUILD_DIR)/.config'
+	sed -i 's,^\(CONFIG_EXTRA_LDFLAGS[ ]*=\).*,\1"$(BUSYBOX_LDFLAGS)",g' '$(BUSYBOX_BUILD_DIR)/.config'
+	sed -i 's,^\(CONFIG_PREFIX[ ]*=\).*,\1"$(ROOTFS_DIR)",g'             '$(BUSYBOX_BUILD_DIR)/.config'
 	make -C '$(BUSYBOX_BUILD_DIR)' oldconfig
-	make -C '$(BUSYBOX_BUILD_DIR)' -j$(BUILDJOBS) CONFIG_EXTRA_CFLAGS='$(BUSYBOX_CFLAGS)' CONFIG_EXTRA_LDFLAGS='$(BUSYBOX_LDFLAGS)' CONFIG_PREFIX='$(ROOTFS_DIR)' ARCH='$(ARCH)' V=1 all
-	make -C '$(BUSYBOX_BUILD_DIR)' -j$(BUILDJOBS) CONFIG_EXTRA_CFLAGS='$(BUSYBOX_CFLAGS)' CONFIG_EXTRA_LDFLAGS='$(BUSYBOX_LDFLAGS)' CONFIG_PREFIX='$(ROOTFS_DIR)' ARCH='$(ARCH)' install
+	make -C '$(BUSYBOX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' V=1 all
+	make -C '$(BUSYBOX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' install
 
 build: extract $(LINUX_TARGET) $(MUSL_TARGET) $(BUSYBOX_TARGET)
 
@@ -159,4 +162,4 @@ help:
 	$(call HELP_PREFIX,qemu,testing your kernel/initramfs combination with QEMU)
 	$(call HELP_PREFIX,qemu-console,testing your kernel/initramfs combination with [n]curses QEMU)
 	$(call HELP_PREFIX,qemu-net,testing your kernel/initramfs combination with QEMU and network support through TAP)
-	@echo "\t\tAdditional options: NET_BRIDGE, NET_IP4"
+	@echo "\t\tAdditional options: NET_BRIDGE, NET_IP4, NET_HWADDR"
