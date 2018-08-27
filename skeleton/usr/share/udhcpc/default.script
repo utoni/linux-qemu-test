@@ -1,0 +1,63 @@
+#!/bin/sh
+
+# udhcpc config script
+
+# $interface is the name of the device udhcpc is using
+# $router is the (space_separated) list of gateways
+# $broadcast is the broadcast address
+# $ip is the ip address that we get from the dhcp server
+# $dns is the list of dns servers we get from the dhcp server
+# $domain is the domain of the network
+
+# constants for the resolv.conf and backup files
+resolv_conf="/etc/resolv.conf"
+resolv_bak="/etc/resolv.backup_dhcp"
+
+
+case $1 in
+    deconfig)
+        # deconfig - put the interface up but deconfigured
+        # called when udhcpc is started or a lease is lost
+
+        # replace resolv.conf with the backup, if the backup exists:
+        if [ -f "$resolv_bak" ]; then
+            mv "$resolv_bak" "$resolv_conf"
+        fi
+
+        # set the interface's address to 0.0.0.0 for now
+        ifconfig $interface 0.0.0.0;;
+
+    renew|bound)
+        # renew - lease is renewed
+        # bound - move from unbound to bound state
+
+        # configure the interface with the given ip, broadcast address, and netmask
+        ifconfig $interface $ip ${broadcast:+broadcast $broadcast} ${subnet:+netmask $subnet}
+
+        # for each given gateway, overwrite the defaults??? hell if I know.
+        for i in $router; do
+            route add default gw $i dev $interface
+        done
+
+        if [ ! -f "$resolv_bak" ] && [ -f "$resolv_conf" ]; then
+            mv "$resolv_conf" "$resolv_bak"
+        fi
+
+        # clear `resolv.conf`
+        echo -n "" > "$resolv_conf"
+
+        # if there's a domain given, add it to `resolv.conf`.
+        if [ -n "$domain" ]; then
+            echo "search $domain" >> "$resolv_conf"
+        fi
+
+        # for each given dns server, add it to `resolv.conf`.
+        for i in $dns; do
+            echo "nameserver $i" >> "$resolv_conf"
+        done;;
+esac
+
+exit 0
+
+# adapted from http://lists.debian.org/debian-boot/2002/11/msg00500.html
+# from https://gist.githubusercontent.com/startling/2165518/raw/415b307b8441c236461296c648b7d975ef9b0dde/gistfile1.sh

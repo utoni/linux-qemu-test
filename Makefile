@@ -1,6 +1,9 @@
 ARCH=$(shell uname -m)
+NET_BRIDGE ?= br0
+NET_HWADDR ?= 66:66:66:66:66:66
+NET_IP4 ?=
 
-BUILDJOBS ?= 5
+BUILDJOBS ?= $(shell cat /proc/cpuinfo | grep -o '^processor' | wc -l)
 THIS_DIR=$(realpath .)
 
 DL_DIR=$(THIS_DIR)/dl
@@ -87,6 +90,8 @@ $(LINUX_TARGET):
 	make -C '$(LINUX_BUILD_DIR)' kvmconfig
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' bzImage
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' INSTALL_HDR_PATH='$(ROOTFS_DIR)/usr' headers_install
+	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' INSTALL_MOD_PATH='$(ROOTFS_DIR)/usr' modules
+	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' INSTALL_MOD_PATH='$(ROOTFS_DIR)/usr' modules_install
 
 $(MUSL_TARGET):
 	cd '$(MUSL_BUILD_DIR)' && (test -r ./config.mak || ./configure --prefix='$(ROOTFS_DIR)/usr')
@@ -105,7 +110,7 @@ build: extract $(LINUX_TARGET) $(MUSL_TARGET) $(BUSYBOX_TARGET)
 
 $(INITRD_TARGET):
 	cp -v '$(SCRIPT_DIR)/init.rootfs' '$(ROOTFS_DIR)/init'
-	cp -rfvT '$(SKEL_DIR)' '$(ROOTFS_DIR)'
+	cp -rfvTp '$(SKEL_DIR)' '$(ROOTFS_DIR)'
 	chmod 0755 '$(ROOTFS_DIR)/init'
 	cd '$(ROOTFS_DIR)' && find . -print0 | cpio --null -ov --format=newc | gzip -9 > '$(INITRD_TARGET)'
 
@@ -115,10 +120,15 @@ define DO_BUILD
 	make
 endef
 
-image-rebuild:
-	rm -rf '$(ROOTFS_DIR)'
+force-remove:
 	rm -f $(LINUX_TARGET) $(MUSL_TARGET) $(BUSYBOX_TARGET)
 	rm -f '$(INITRD_TARGET)'
+
+image-rebuild: force-remove
+	rm -rf '$(ROOTFS_DIR)'
+	$(DO_BUILD)
+
+image-reinstall: force-remove
 	$(DO_BUILD)
 
 image-repack:
@@ -126,4 +136,11 @@ image-repack:
 	$(DO_BUILD)
 
 qemu: image
-	qemu-system-x86_64 -kernel '$(LINUX_BUILD_DIR)/arch/x86_64/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm
+	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -vga qxl -display sdl
+
+qemu-console: image
+	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -curses
+
+qemu-net: image
+	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -vga qxl -display sdl \
+		-net nic,macaddr=$(NET_HWADDR) -net tap,ifname=linux-qemu-test,br=$(NET_BRIDGE) -append 'net $(if $(NET_IP4),ip4)'

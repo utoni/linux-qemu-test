@@ -24,7 +24,22 @@ Welcome to mini_linux
 
 !
 
+for arg in $(cat /proc/cmdline | tr '[:upper:]' '[:lower:]'); do
+    if [ x"${arg}" = xip4 ]; then
+        sysctl -w net.ipv6.conf.all.disable_ipv6=1
+    fi
+done
+
+for arg in $(cat /proc/cmdline | tr '[:upper:]' '[:lower:]'); do
+    if [ x"${arg}" = xnet ]; then
+        echo '*** INIT NETWORK ***'
+        for netif in $(ls /sys/class/net); do
+            ifconfig ${netif} 0.0.0.0 up
+        done
+        udhcpc -R
+    fi
+done
+
 loadkmap </usr/share/keymaps/i386/qwertz/de-latin1.bmap
 setsid cttyhack sh
-poweroff
-echo q >/proc/sysrq-trigger
+poweroff -f
