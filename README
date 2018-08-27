@@ -2,7 +2,7 @@ Mini Linux
 ++++++++++
 
 What? Mainline/Stable Linux Kernel + musl + BusyBox
-Why? Fast testing Linux Kernel/Module code modifications.
+Why? Fast testing Linux Kernel/Module code modifications with QEMU.
 How? see `make help`
 
 Inspired by: https://gist.github.com/chrisdone/02e165a0004be33734ac2334f215380e
