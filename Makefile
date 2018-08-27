@@ -14,6 +14,7 @@ LINUX_DL_SUFFIX=tar.xz
 LINUX_DL_URL=$(LINUX_DL_PREFIX)/$(LINUX_DL_BASENAME)-$(LINUX_DL_VERSION).$(LINUX_DL_SUFFIX)
 LINUX_DL_FILE=$(DL_DIR)/$(LINUX_DL_BASENAME)-$(LINUX_DL_VERSION).$(LINUX_DL_SUFFIX)
 LINUX_BUILD_DIR=$(BUILD_DIR)/$(LINUX_DL_BASENAME)-$(LINUX_DL_VERSION)
+LINUX_TARGET=$(LINUX_BUILD_DIR)/vmlinux
 
 MUSL_DL_PREFIX=https://www.musl-libc.org/releases
 MUSL_DL_BASENAME=musl
@@ -22,6 +23,7 @@ MUSL_DL_SUFFIX=tar.gz
 MUSL_DL_URL=$(MUSL_DL_PREFIX)/$(MUSL_DL_BASENAME)-$(MUSL_DL_VERSION).$(MUSL_DL_SUFFIX)
 MUSL_DL_FILE=$(DL_DIR)/$(MUSL_DL_BASENAME)-$(MUSL_DL_VERSION)
 MUSL_BUILD_DIR=$(BUILD_DIR)/$(MUSL_DL_BASENAME)-$(MUSL_DL_VERSION)
+MUSL_TARGET=$(MUSL_BUILD_DIR)/lib/libc.so
 
 BUSYBOX_DL_PREFIX=https://busybox.net/downloads
 BUSYBOX_DL_BASENAME=busybox
@@ -32,6 +34,7 @@ BUSYBOX_DL_FILE=$(DL_DIR)/$(BUSYBOX_DL_BASENAME)-$(BUSYBOX_DL_VERSION).$(BUSYBOX
 BUSYBOX_BUILD_DIR=$(BUILD_DIR)/$(BUSYBOX_DL_BASENAME)-$(BUSYBOX_DL_VERSION)
 BUSYBOX_CFLAGS=-no-pie -I$(ROOTFS_DIR)/include -I$(ROOTFS_DIR)/usr/include -specs $(ROOTFS_DIR)/lib/musl-gcc.specs -Wno-parentheses -Wno-strict-prototypes -Wno-undef
 BUSYBOX_LDFLAGS=-L$(ROOTFS_DIR)/lib -L$(ROOTFS_DIR)/usr/lib
+BUSYBOX_TARGET=$(BUSYBOX_BUILD_DIR)/busybox
 
 all: pre dl extract build image
 
@@ -72,7 +75,7 @@ $(BUSYBOX_BUILD_DIR)/Makefile:
 
 extract: dl $(LINUX_BUILD_DIR)/Makefile $(MUSL_BUILD_DIR)/Makefile $(BUSYBOX_BUILD_DIR)/Makefile
 
-$(LINUX_BUILD_DIR)/vmlinux:
+$(LINUX_TARGET):
 	cp -v '$(CFG_DIR)/linux.config' '$(LINUX_BUILD_DIR)/.config'
 	make -C '$(LINUX_BUILD_DIR)' oldconfig
 	make -C '$(LINUX_BUILD_DIR)' x86_64_defconfig
@@ -80,18 +83,18 @@ $(LINUX_BUILD_DIR)/vmlinux:
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH=$(shell uname -m) bzImage
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(shell uname -m)' INSTALL_HDR_PATH='$(ROOTFS_DIR)/usr' headers_install
 
-$(MUSL_BUILD_DIR)/lib/libc.so:
-	cd '$(MUSL_BUILD_DIR)' && ./configure --prefix='$(ROOTFS_DIR)'
+$(MUSL_TARGET):
+	cd '$(MUSL_BUILD_DIR)' && (test -r ./config.mak || ./configure --prefix='$(ROOTFS_DIR)')
 	make -C '$(MUSL_BUILD_DIR)' -j$(BUILDJOBS) ARCH=$(shell uname -m) V=1 all
 	make -C '$(MUSL_BUILD_DIR)' -j$(BUILDJOBS) ARCH=$(shell uname -m) install
 
-$(BUSYBOX_BUILD_DIR)/busybox:
+$(BUSYBOX_TARGET):
 	cp -v '$(CFG_DIR)/busybox.config' '$(BUSYBOX_BUILD_DIR)/.config'
 	make -C '$(BUSYBOX_BUILD_DIR)' oldconfig
 	make -C '$(BUSYBOX_BUILD_DIR)' -j$(BUILDJOBS) CONFIG_EXTRA_CFLAGS='$(BUSYBOX_CFLAGS)' CONFIG_EXTRA_LDFLAGS='$(BUSYBOX_LDFLAGS)' CONFIG_PREFIX='$(ROOTFS_DIR)' ARCH=$(shell uname -m) V=1 all
 	make -C '$(BUSYBOX_BUILD_DIR)' -j$(BUILDJOBS) CONFIG_EXTRA_CFLAGS='$(BUSYBOX_CFLAGS)' CONFIG_EXTRA_LDFLAGS='$(BUSYBOX_LDFLAGS)' CONFIG_PREFIX='$(ROOTFS_DIR)' ARCH=$(shell uname -m) install
 
-build: extract $(LINUX_BUILD_DIR)/vmlinux $(MUSL_BUILD_DIR)/lib/libc.so $(BUSYBOX_BUILD_DIR)/busybox
+build: extract $(LINUX_TARGET) $(MUSL_TARGET) $(BUSYBOX_TARGET)
 
 image: build
 	cp -v '$(SCRIPT_DIR)/init.rootfs' '$(ROOTFS_DIR)/init'
@@ -100,7 +103,7 @@ image: build
 
 force-rebuild:
 	rm -rf '$(ROOTFS_DIR)'
-	rm -f $(LINUX_BUILD_DIR)/vmlinux $(MUSL_BUILD_DIR)/lib/libc.so $(BUSYBOX_BUILD_DIR)/busybox
+	rm -f $(LINUX_TARGET) $(MUSL_TARGET) $(BUSYBOX_TARGET)
 
 image-rebuild: force-rebuild build
 
