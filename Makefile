@@ -62,7 +62,9 @@ $(BUSYBOX_BUILD_DIR):
 pre: $(DL_DIR) $(BUILD_DIR) $(ROOTFS_DIR) $(LINUX_BUILD_DIR) $(MUSL_BUILD_DIR) $(BUSYBOX_BUILD_DIR)
 
 $(LINUX_DL_FILE):
+ifeq (x$(LINUX_LOCAL),x)
 	wget '$(LINUX_DL_URL)' -O '$@' || (rm -f '$(LINUX_DL_FILE)' && false)
+endif
 
 $(MUSL_DL_FILE):
 	wget '$(MUSL_DL_URL)' -O '$@' || (rm -f '$(MUSL_DL_FILE)' && false)
@@ -73,7 +75,12 @@ $(BUSYBOX_DL_FILE):
 dl: pre $(LINUX_DL_FILE) $(MUSL_DL_FILE) $(BUSYBOX_DL_FILE)
 
 $(LINUX_BUILD_DIR)/Makefile:
+ifeq (x$(LINUX_LOCAL),x)
 	tar --strip-components=1 -C '$(LINUX_BUILD_DIR)' -xvf '$(LINUX_DL_FILE)' || (rm -rf '$(LINUX_BUILD_DIR)' && false)
+else
+	rmdir '$(LINUX_BUILD_DIR)'
+	ln -s '$(LINUX_LOCAL)' '$(LINUX_BUILD_DIR)'
+endif
 
 $(MUSL_BUILD_DIR)/Makefile:
 	tar --strip-components=1 -C '$(MUSL_BUILD_DIR)' -xvzf '$(MUSL_DL_FILE)' || (rm -rf '$(MUSL_BUILD_DIR)' && false)
@@ -85,7 +92,7 @@ extract: dl $(LINUX_BUILD_DIR)/Makefile $(MUSL_BUILD_DIR)/Makefile $(BUSYBOX_BUI
 
 $(LINUX_TARGET):
 	cp -v '$(CFG_DIR)/linux.config' '$(LINUX_BUILD_DIR)/.config'
-	make -C '$(LINUX_BUILD_DIR)' oldconfig
+	#make -C '$(LINUX_BUILD_DIR)' oldconfig
 	make -C '$(LINUX_BUILD_DIR)' x86_64_defconfig
 	make -C '$(LINUX_BUILD_DIR)' kvmconfig
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' bzImage
@@ -149,7 +156,7 @@ qemu-net: image
 		-net nic,macaddr=$(NET_HWADDR) -net tap,ifname=linux-qemu-test,br=$(NET_BRIDGE) -append 'net $(if $(NET_IP4),ip4)'
 
 define HELP_PREFIX
-@echo "\t make $1\t- $2"
+	@echo "\t make $1\t- $2"
 endef
 
 help:
