@@ -1,5 +1,6 @@
 #!/bin/sh
 export PATH="/bin:/sbin:/usr/bin:/usr/sbin"
+export PS1='\w \h\$ '
 
 mkdir -p /dev /proc /sys
 mount -t devtmpfs none /dev
@@ -41,6 +42,7 @@ for arg in $(cat /proc/cmdline | tr '[:upper:]' '[:lower:]'); do
     fi
 done
 
+hostname minlin
 loadkmap </usr/share/keymaps/i386/qwertz/de-latin1.bmap
 setsid cttyhack sh
 poweroff -f
