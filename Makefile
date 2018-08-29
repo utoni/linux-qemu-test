@@ -2,6 +2,8 @@ ARCH=$(shell uname -m)
 NET_BRIDGE ?= br0
 NET_HWADDR ?= 66:66:66:66:66:66
 NET_IP4 ?=
+LINUX_LOCAL ?=
+DEFCONFIG ?=
 
 BUILDJOBS ?= $(shell cat /proc/cpuinfo | grep -o '^processor' | wc -l)
 THIS_DIR=$(realpath .)
@@ -92,8 +94,11 @@ extract: dl $(LINUX_BUILD_DIR)/Makefile $(MUSL_BUILD_DIR)/Makefile $(BUSYBOX_BUI
 
 $(LINUX_TARGET):
 	cp -v '$(CFG_DIR)/linux.config' '$(LINUX_BUILD_DIR)/.config'
-	#make -C '$(LINUX_BUILD_DIR)' oldconfig
+ifeq (x$(DEFCONFIG),x)
+	make -C '$(LINUX_BUILD_DIR)' oldconfig
+else
 	make -C '$(LINUX_BUILD_DIR)' x86_64_defconfig
+endif
 	make -C '$(LINUX_BUILD_DIR)' kvmconfig
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' bzImage
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' INSTALL_HDR_PATH='$(ROOTFS_DIR)/usr' headers_install
