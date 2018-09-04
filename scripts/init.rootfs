@@ -1,12 +1,21 @@
 #!/bin/sh
 export PATH="/bin:/sbin:/usr/bin:/usr/sbin"
 export PS1='\w \h\$ '
+UDHCPC_ARGS=
 
 mkdir -p /dev /proc /sys
 mount -t devtmpfs none /dev
 mount -t proc none /proc
 mount -t sysfs none /sys
 mount -t debugfs nodev /sys/kernel/debug
+
+if [ x"$(command -v klogd)" != x ]; then
+	$(command -v klogd)
+fi
+if [ x"$(command -v syslogd)" != x ]; then
+	$(command -v syslogd) -C
+	UDHCPC_ARGS='-S'
+fi
 
 echo '4 4 1 7' >/proc/sys/kernel/printk
 cat <<!
@@ -33,12 +42,12 @@ for arg in $(cat /proc/cmdline | tr '[:upper:]' '[:lower:]'); do
 done
 
 for arg in $(cat /proc/cmdline | tr '[:upper:]' '[:lower:]'); do
-    if [ x"${arg}" = xnet ]; then
+    if [ x"$(command -v udhcpc)" != x -a x"${arg}" = xnet ]; then
         echo '*** INIT NETWORK ***'
         for netif in $(ls /sys/class/net); do
             ifconfig ${netif} 0.0.0.0 up
         done
-        udhcpc -R
+        $(command -v udhcpc) -R ${UDHCPC_ARGS}
     fi
 done
 

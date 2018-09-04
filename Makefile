@@ -120,6 +120,9 @@ $(BUSYBOX_TARGET):
 	make -C '$(BUSYBOX_BUILD_DIR)' oldconfig
 	make -C '$(BUSYBOX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' V=1 all
 	make -C '$(BUSYBOX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' install
+	sed -i 's,^\(CONFIG_EXTRA_CFLAGS[ ]*=\).*,\1"",g'     '$(BUSYBOX_BUILD_DIR)/.config'
+	sed -i 's,^\(CONFIG_EXTRA_LDFLAGS[ ]*=\).*,\1"",g'    '$(BUSYBOX_BUILD_DIR)/.config'
+	sed -i 's,^\(CONFIG_PREFIX[ ]*=\).*,\1"./_install",g' '$(BUSYBOX_BUILD_DIR)/.config'
 
 build: extract $(LINUX_TARGET) $(MUSL_TARGET) $(BUSYBOX_TARGET)
 
