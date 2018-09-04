@@ -150,6 +150,10 @@ image-repack:
 	rm -f '$(INITRD_TARGET)'
 	$(DO_BUILD)
 
+net:
+	sudo ip tuntap add linux-qemu-test mode tap
+	sudo /etc/qemu-ifup linux-qemu-test
+
 qemu: image
 	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -vga qxl -display sdl
 
@@ -159,9 +163,13 @@ qemu-console: image
 qemu-serial: image
 	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -nographic -append console=ttyS0
 
+qemu-serial-net: image
+	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -nographic \
+		-net nic,macaddr=$(NET_HWADDR) -net tap,ifname=linux-qemu-test,br=$(NET_BRIDGE),script=no,downscript=no -append 'net $(if $(NET_IP4),ip4) console=ttyS0'
+
 qemu-net: image
 	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -vga qxl -display sdl \
-		-net nic,macaddr=$(NET_HWADDR) -net tap,ifname=linux-qemu-test,br=$(NET_BRIDGE) -append 'net $(if $(NET_IP4),ip4)'
+		-net nic,macaddr=$(NET_HWADDR) -net tap,ifname=linux-qemu-test,br=$(NET_BRIDGE),script=no,downscript=no -append 'net $(if $(NET_IP4),ip4)'
 
 define HELP_PREFIX
 	@echo "\t make $1\t- $2"
