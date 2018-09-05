@@ -109,8 +109,8 @@ $(MUSL_TARGET):
 	cd '$(MUSL_BUILD_DIR)' && (test -r ./config.mak || ./configure --prefix='$(ROOTFS_DIR)/usr')
 	make -C '$(MUSL_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' V=1 all
 	make -C '$(MUSL_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' install
-	ln -sr '$(ROOTFS_DIR)/usr/lib' '$(ROOTFS_DIR)/lib' || true
-	ln -sr '$(ROOTFS_DIR)/lib/libc.so' '$(ROOTFS_DIR)/lib/ld-musl-$(ARCH).so.1' || true
+	test -e '$(ROOTFS_DIR)/lib' || ln -sr '$(ROOTFS_DIR)/usr/lib' '$(ROOTFS_DIR)/lib'
+	test -e '$(ROOTFS_DIR)/lib/ld-musl-$(ARCH).so.1' || ln -sr '$(ROOTFS_DIR)/lib/libc.so' '$(ROOTFS_DIR)/lib/ld-musl-$(ARCH).so.1'
 
 $(BUSYBOX_TARGET):
 	cp -v '$(CFG_DIR)/busybox.config' '$(BUSYBOX_BUILD_DIR)/.config'
@@ -128,9 +128,9 @@ build: extract $(LINUX_TARGET) $(MUSL_TARGET) $(BUSYBOX_TARGET)
 
 $(INITRD_TARGET):
 	cp -v '$(SCRIPT_DIR)/init.rootfs' '$(ROOTFS_DIR)/init'
-	cp -rfvTp '$(SKEL_DIR)' '$(ROOTFS_DIR)'
-	chmod 0755 '$(ROOTFS_DIR)/init'
-	cd '$(ROOTFS_DIR)' && find . -print0 | cpio --null -ov --format=newc | gzip -9 > '$(INITRD_TARGET)'
+	chmod 0755                        '$(ROOTFS_DIR)/init'
+	cp -rfvTp '$(SKEL_DIR)'           '$(ROOTFS_DIR)'
+	cd '$(ROOTFS_DIR)' && find . -print0 | cpio --owner 0:0 --null -ov --format=newc | gzip -9 > '$(INITRD_TARGET)'
 
 image: build $(INITRD_TARGET)
 
@@ -146,7 +146,8 @@ image-rebuild: force-remove
 	rm -rf '$(ROOTFS_DIR)'
 	$(DO_BUILD)
 
-image-reinstall: force-remove
+image-reinstall:
+	rm -f '$(INITRD_TARGET)'
 	$(DO_BUILD)
 
 image-repack:
@@ -155,7 +156,8 @@ image-repack:
 
 net:
 	sudo ip tuntap add linux-qemu-test mode tap
-	sudo /etc/qemu-ifup linux-qemu-test
+	test -x /etc/qemu-ifup && sudo /etc/qemu-ifup linux-qemu-test
+	test -x /etc/qemu-ifup || sudo scripts/qemu-ifup linux-qemu-test
 
 qemu: image
 	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -vga qxl -display sdl
@@ -174,6 +176,7 @@ qemu-net: image
 	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -vga qxl -display sdl \
 		-net nic,macaddr=$(NET_HWADDR) -net tap,ifname=linux-qemu-test,br=$(NET_BRIDGE),script=no,downscript=no -append 'net $(if $(NET_IP4),ip4)'
 
+# printf '%*s%-10s - %s\n' '20' 'COMMAND' '' 'HELP'
 define HELP_PREFIX
 	@echo "\t make $1\t- $2"
 endef
