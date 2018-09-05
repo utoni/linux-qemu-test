@@ -101,9 +101,9 @@ else
 endif
 	make -C '$(LINUX_BUILD_DIR)' kvmconfig
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' bzImage
-	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' INSTALL_HDR_PATH='$(ROOTFS_DIR)/usr' headers_install
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' INSTALL_MOD_PATH='$(ROOTFS_DIR)/usr' modules
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' INSTALL_MOD_PATH='$(ROOTFS_DIR)/usr' modules_install
+	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' INSTALL_HDR_PATH='$(ROOTFS_DIR)/usr' headers_install
 
 $(MUSL_TARGET):
 	cd '$(MUSL_BUILD_DIR)' && (test -r ./config.mak || ./configure --prefix='$(ROOTFS_DIR)/usr')
@@ -126,9 +126,7 @@ $(BUSYBOX_TARGET):
 
 build: extract $(LINUX_TARGET) $(MUSL_TARGET) $(BUSYBOX_TARGET)
 
-$(INITRD_TARGET):
-	cp -v '$(SCRIPT_DIR)/init.rootfs' '$(ROOTFS_DIR)/init'
-	chmod 0755                        '$(ROOTFS_DIR)/init'
+$(INITRD_TARGET): $(ROOTFS_DIR)/bin/busybox
 	cp -rfvTp '$(SKEL_DIR)'           '$(ROOTFS_DIR)'
 	cd '$(ROOTFS_DIR)' && find . -print0 | cpio --owner 0:0 --null -ov --format=newc | gzip -9 > '$(INITRD_TARGET)'
 
