@@ -49,7 +49,7 @@ for arg in $(cat /proc/cmdline | tr '[:upper:]' '[:lower:]'); do
         for netif in $(ls /sys/class/net); do
             ifconfig ${netif} 0.0.0.0 up
         done
-        $(command -v udhcpc) -R -H ${HOSTNAME} ${UDHCPC_ARGS}
+        $(command -v udhcpc) -R -x hostname:${HOSTNAME} ${UDHCPC_ARGS}
     fi
 done
 

@@ -31,7 +31,7 @@ MUSL_DL_BASENAME=musl
 MUSL_DL_VERSION=1.1.19
 MUSL_DL_SUFFIX=tar.gz
 MUSL_DL_URL=$(MUSL_DL_PREFIX)/$(MUSL_DL_BASENAME)-$(MUSL_DL_VERSION).$(MUSL_DL_SUFFIX)
-MUSL_DL_FILE=$(DL_DIR)/$(MUSL_DL_BASENAME)-$(MUSL_DL_VERSION)
+MUSL_DL_FILE=$(DL_DIR)/$(MUSL_DL_BASENAME)-$(MUSL_DL_VERSION).$(MUSL_DL_SUFFIX)
 MUSL_BUILD_DIR=$(BUILD_DIR)/$(MUSL_DL_BASENAME)-$(MUSL_DL_VERSION)
 MUSL_TARGET=$(MUSL_BUILD_DIR)/lib/libc.so
 
@@ -92,6 +92,10 @@ $(BUSYBOX_BUILD_DIR)/Makefile:
 
 extract: dl $(LINUX_BUILD_DIR)/Makefile $(MUSL_BUILD_DIR)/Makefile $(BUSYBOX_BUILD_DIR)/Makefile
 
+define DO_BUILD_LINUX
+	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' bzImage
+endef
+
 $(LINUX_TARGET):
 	cp -v '$(CFG_DIR)/linux.config' '$(LINUX_BUILD_DIR)/.config'
 ifeq (x$(DEFCONFIG),x)
@@ -100,7 +104,7 @@ else
 	make -C '$(LINUX_BUILD_DIR)' x86_64_defconfig
 endif
 	make -C '$(LINUX_BUILD_DIR)' kvmconfig
-	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' bzImage
+	$(DO_BUILD_LINUX)
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' INSTALL_MOD_PATH='$(ROOTFS_DIR)/usr' modules
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' INSTALL_MOD_PATH='$(ROOTFS_DIR)/usr' modules_install
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' INSTALL_HDR_PATH='$(ROOTFS_DIR)/usr' headers_install
@@ -124,6 +128,9 @@ $(BUSYBOX_TARGET):
 	sed -i 's,^\(CONFIG_EXTRA_LDFLAGS[ ]*=\).*,\1"",g'    '$(BUSYBOX_BUILD_DIR)/.config'
 	sed -i 's,^\(CONFIG_PREFIX[ ]*=\).*,\1"./_install",g' '$(BUSYBOX_BUILD_DIR)/.config'
 
+build-linux: $(LINUX_TARGET)
+	$(DO_BUILD_LINUX)
+
 build: extract $(LINUX_TARGET) $(MUSL_TARGET) $(BUSYBOX_TARGET)
 
 $(INITRD_TARGET): $(ROOTFS_DIR)/bin/busybox
@@ -142,10 +149,6 @@ force-remove:
 
 image-rebuild: force-remove
 	rm -rf '$(ROOTFS_DIR)'
-	$(DO_BUILD)
-
-image-reinstall:
-	rm -f '$(INITRD_TARGET)'
 	$(DO_BUILD)
 
 image-repack:
@@ -190,3 +193,5 @@ help:
 	$(call HELP_PREFIX,qemu-console,testing your kernel/initramfs combination with [n]curses QEMU)
 	$(call HELP_PREFIX,qemu-net,testing your kernel/initramfs combination with QEMU and network support through TAP)
 	@echo "\t\tAdditional options: NET_BRIDGE, NET_IP4, NET_HWADDR"
+
+.PHONY: all pre dl extract build build-linux image image-rebuild image-repack net qemu qemu-console qemu-serial qemu-serial-net qemu-net help
