@@ -187,14 +187,22 @@ endef
 
 help:
 	@echo 'Available Makefile targets are:'
+	$(call HELP_PREFIX,all,do all steps required for a working bzImage/initramfs)
+	$(call HELP_PREFIX,pre,all pre requirements)
+	$(call HELP_PREFIX,dl,download all sources)
+	$(call HELP_PREFIX,extract,extract all sources)
 	$(call HELP_PREFIX,build,build LinuxKernel/musl/BusyBox)
+	$(call HELP_PREFIX,build-linux,force LinuxKernel rebuild)
+	$(call HELP_PREFIX,force-remove,remove linux/musl/busybox and initramfs targets)
 	$(call HELP_PREFIX,image,create initramfs cpio archive)
 	$(call HELP_PREFIX,image-rebuild,force recreation of rootfs)
-	$(call HELP_PREFIX,image-reinstall,force reinstallation of LinuxKernel/musl/BusyBox into rootfs)
 	$(call HELP_PREFIX,image-repack,force initramfs cpio archive recreation)
-	$(call HELP_PREFIX,qemu,testing your kernel/initramfs combination with QEMU)
-	$(call HELP_PREFIX,qemu-console,testing your kernel/initramfs combination with [n]curses QEMU)
-	$(call HELP_PREFIX,qemu-net,testing your kernel/initramfs combination with QEMU and network support through TAP)
+	$(call HELP_PREFIX,net,prepare your network bridge for use with QEMU)
+	$(call HELP_PREFIX,qemu,test your kernel/initramfs combination with QEMU)
+	$(call HELP_PREFIX,qemu-console,test your kernel/initramfs combination with [n]curses QEMU)
+	$(call HELP_PREFIX,qemu-serial,test your kernel/initramfs combination using a serial console with QEMU)
+	$(call HELP_PREFIX,qemu-serial-net,test your kernel/initramfs combination using a serial console and network support with QEMU)
+	$(call HELP_PREFIX,qemu-net,test your kernel/initramfs combination with QEMU and network support through TAP)
 	@echo
 	@echo -e '\tAdditional make options:'
 	$(call HELP_PREFIX_OPTS,NET_BRIDGE=if,set your host network bridge)
