@@ -156,9 +156,9 @@ image-repack:
 	$(DO_BUILD)
 
 net:
-	sudo ip tuntap add linux-qemu-test mode tap
-	test -x /etc/qemu-ifup && sudo /etc/qemu-ifup linux-qemu-test
-	test -x /etc/qemu-ifup || sudo scripts/qemu-ifup linux-qemu-test
+	-sudo ip tuntap add linux-qemu-test mode tap
+	-test -x /etc/qemu-ifup && sudo /etc/qemu-ifup linux-qemu-test
+	-test -x /etc/qemu-ifup || sudo scripts/qemu-ifup linux-qemu-test
 
 qemu: image
 	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -vga qxl -display sdl
@@ -177,9 +177,12 @@ qemu-net: image
 	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -vga qxl -display sdl \
 		-net nic,macaddr=$(NET_HWADDR) -net tap,ifname=linux-qemu-test,br=$(NET_BRIDGE),script=no,downscript=no -append 'net $(if $(NET_IP4),ip4)'
 
-# printf '%*s%-10s - %s\n' '20' 'COMMAND' '' 'HELP'
 define HELP_PREFIX
-	@echo "\t make $1\t- $2"
+	@printf '%*s%-10s - %s\n' '20' '$1' '' '$2'
+endef
+
+define HELP_PREFIX_OPTS
+	@printf '%*s%-10s - %s\n' '30' '$1' '' '$2'
 endef
 
 help:
@@ -192,6 +195,13 @@ help:
 	$(call HELP_PREFIX,qemu,testing your kernel/initramfs combination with QEMU)
 	$(call HELP_PREFIX,qemu-console,testing your kernel/initramfs combination with [n]curses QEMU)
 	$(call HELP_PREFIX,qemu-net,testing your kernel/initramfs combination with QEMU and network support through TAP)
-	@echo "\t\tAdditional options: NET_BRIDGE, NET_IP4, NET_HWADDR"
+	@echo
+	@echo -e '\tAdditional make options:'
+	$(call HELP_PREFIX_OPTS,NET_BRIDGE=if,set your host network bridge)
+	$(call HELP_PREFIX_OPTS,NET_IP4=y,force IPv4 if set)
+	$(call HELP_PREFIX_OPTS,NET_HWADDR=66:66:66:66:66:66,set mac address for the qemu guest)
+	$(call HELP_PREFIX_OPTS,LINUX_LOCAL=/path/to/linux,set a custom linux directory)
+	$(call HELP_PREFIX_OPTS,DEFCONFIG=y,use linux `make oldconfig` instead of `make x86_64_defconfig`)
+	$(call HELP_PREFIX_OPTS,BUILDJOBS=n,set the maximum number of concurrent build jobs)
 
 .PHONY: all pre dl extract build build-linux image image-rebuild image-repack net qemu qemu-console qemu-serial qemu-serial-net qemu-net help
