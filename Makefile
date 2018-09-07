@@ -92,10 +92,6 @@ $(BUSYBOX_BUILD_DIR)/Makefile:
 
 extract: dl $(LINUX_BUILD_DIR)/Makefile $(MUSL_BUILD_DIR)/Makefile $(BUSYBOX_BUILD_DIR)/Makefile
 
-define DO_BUILD_LINUX
-	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' bzImage
-endef
-
 $(LINUX_TARGET):
 	cp -v '$(CFG_DIR)/linux.config' '$(LINUX_BUILD_DIR)/.config'
 ifeq (x$(DEFCONFIG),x)
@@ -104,7 +100,7 @@ else
 	make -C '$(LINUX_BUILD_DIR)' x86_64_defconfig
 endif
 	make -C '$(LINUX_BUILD_DIR)' kvmconfig
-	$(DO_BUILD_LINUX)
+	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' bzImage
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' INSTALL_MOD_PATH='$(ROOTFS_DIR)/usr' modules
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' INSTALL_MOD_PATH='$(ROOTFS_DIR)/usr' modules_install
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' INSTALL_HDR_PATH='$(ROOTFS_DIR)/usr' headers_install
@@ -128,7 +124,12 @@ $(BUSYBOX_TARGET):
 	sed -i 's,^\(CONFIG_EXTRA_LDFLAGS[ ]*=\).*,\1"",g'    '$(BUSYBOX_BUILD_DIR)/.config'
 	sed -i 's,^\(CONFIG_PREFIX[ ]*=\).*,\1"./_install",g' '$(BUSYBOX_BUILD_DIR)/.config'
 
-build-linux: $(LINUX_TARGET)
+define DO_BUILD_LINUX
+	make '$(LINUX_TARGET)'
+endef
+
+build-linux:
+	rm -f '$(LINUX_TARGET)'
 	$(DO_BUILD_LINUX)
 
 build: extract $(LINUX_TARGET) $(MUSL_TARGET) $(BUSYBOX_TARGET)
