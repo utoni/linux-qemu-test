@@ -1,9 +1,11 @@
 ARCH=$(shell uname -m)
+MEMORY ?= 64
 NET_BRIDGE ?= br0
 NET_HWADDR ?= 66:66:66:66:66:66
 NET_IP4 ?=
 LINUX_LOCAL ?=
 DEFCONFIG ?=
+NO_MODULES ?=
 
 BUILDJOBS ?= $(shell cat /proc/cpuinfo | grep -o '^processor' | wc -l)
 THIS_DIR=$(realpath .)
@@ -101,8 +103,10 @@ else
 endif
 	make -C '$(LINUX_BUILD_DIR)' kvmconfig
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' bzImage
+ifeq (x$(NO_MODULES),x)
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' INSTALL_MOD_PATH='$(ROOTFS_DIR)/usr' modules
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' INSTALL_MOD_PATH='$(ROOTFS_DIR)/usr' modules_install
+endif
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' INSTALL_HDR_PATH='$(ROOTFS_DIR)/usr' headers_install
 
 $(MUSL_TARGET):
@@ -162,20 +166,20 @@ net:
 	-test -x /etc/qemu-ifup || sudo scripts/qemu-ifup linux-qemu-test
 
 qemu: image
-	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -vga qxl -display sdl
+	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -vga qxl -display sdl
 
 qemu-console: image
-	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -curses
+	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -curses
 
 qemu-serial: image
-	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -nographic -append console=ttyS0
+	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -nographic -append console=ttyS0
 
 qemu-serial-net: image
-	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -nographic \
+	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -nographic \
 		-net nic,macaddr=$(NET_HWADDR) -net tap,ifname=linux-qemu-test,br=$(NET_BRIDGE),script=no,downscript=no -append 'net $(if $(NET_IP4),ip4) console=ttyS0'
 
 qemu-net: image
-	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -vga qxl -display sdl \
+	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -vga qxl -display sdl \
 		-net nic,macaddr=$(NET_HWADDR) -net tap,ifname=linux-qemu-test,br=$(NET_BRIDGE),script=no,downscript=no -append 'net $(if $(NET_IP4),ip4)'
 
 define HELP_PREFIX
@@ -206,11 +210,13 @@ help:
 	$(call HELP_PREFIX,qemu-net,test your kernel/initramfs combination with QEMU and network support through TAP)
 	@echo
 	@echo -e '\tAdditional make options:'
-	$(call HELP_PREFIX_OPTS,NET_BRIDGE=if,set your host network bridge)
+	$(call HELP_PREFIX_OPTS,NO_MODULES=y,neither build nor install kernel modules)
+	$(call HELP_PREFIX_OPTS,MEMORY=[SIZE],set the RAM size for QEMU)
+	$(call HELP_PREFIX_OPTS,NET_BRIDGE=[IF],set your host network bridge interface)
 	$(call HELP_PREFIX_OPTS,NET_IP4=y,force IPv4 if set)
 	$(call HELP_PREFIX_OPTS,NET_HWADDR=66:66:66:66:66:66,set mac address for the qemu guest)
 	$(call HELP_PREFIX_OPTS,LINUX_LOCAL=/path/to/linux,set a custom linux directory)
 	$(call HELP_PREFIX_OPTS,DEFCONFIG=y,use linux `make oldconfig` instead of `make x86_64_defconfig`)
-	$(call HELP_PREFIX_OPTS,BUILDJOBS=n,set the maximum number of concurrent build jobs)
+	$(call HELP_PREFIX_OPTS,BUILDJOBS=[NUMBER-OF-JOBS],set the maximum number of concurrent build jobs)
 
 .PHONY: all pre dl extract build build-linux image image-rebuild image-repack net qemu qemu-console qemu-serial qemu-serial-net qemu-net help

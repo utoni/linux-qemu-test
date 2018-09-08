@@ -6,10 +6,10 @@ HOSTNAME='minlin'
 UDHCPC_ARGS=
 
 mkdir -p /dev /proc /sys
-mount -t devtmpfs none /dev -o size=4k
-mount -t proc none /proc
-mount -t sysfs none /sys
-mount -t debugfs nodev /sys/kernel/debug
+mount -t devtmpfs devtmpfs /dev -o size=4k
+mount -t proc     proc     /proc
+mount -t sysfs    sysfs    /sys
+mount -t debugfs  debugfs  /sys/kernel/debug
 
 if [ x"$(command -v klogd)" != x ]; then
 	$(command -v klogd)
