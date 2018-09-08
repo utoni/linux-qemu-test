@@ -2,7 +2,7 @@ ARCH=$(shell uname -m)
 MEMORY ?= 64
 NET_BRIDGE ?= br0
 NET_HWADDR ?= 66:66:66:66:66:66
-NET_IP4 ?=
+KEYMAP ?= i386/qwertz/de-latin1
 LINUX_LOCAL ?=
 DEFCONFIG ?=
 NO_MODULES ?=
@@ -166,21 +166,21 @@ net:
 	-test -x /etc/qemu-ifup || sudo scripts/qemu-ifup linux-qemu-test
 
 qemu: image
-	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -vga qxl -display sdl
+	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -vga qxl -display sdl -append='keymap=$(KEYMAP)'
 
 qemu-console: image
-	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -curses
+	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -curses -append='keymap=$(KEYMAP)'
 
 qemu-serial: image
-	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -nographic -append console=ttyS0
+	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -nographic -append 'console=ttyS0 keymap=$(KEYMAP)'
 
 qemu-serial-net: image
 	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -nographic \
-		-net nic,macaddr=$(NET_HWADDR) -net tap,ifname=linux-qemu-test,br=$(NET_BRIDGE),script=no,downscript=no -append 'net $(if $(NET_IP4),ip4) console=ttyS0'
+		-net nic,macaddr=$(NET_HWADDR) -net tap,ifname=linux-qemu-test,br=$(NET_BRIDGE),script=no,downscript=no -append 'net console=ttyS0 keymap=$(KEYMAP)'
 
 qemu-net: image
 	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -vga qxl -display sdl \
-		-net nic,macaddr=$(NET_HWADDR) -net tap,ifname=linux-qemu-test,br=$(NET_BRIDGE),script=no,downscript=no -append 'net $(if $(NET_IP4),ip4)'
+		-net nic,macaddr=$(NET_HWADDR) -net tap,ifname=linux-qemu-test,br=$(NET_BRIDGE),script=no,downscript=no -append 'net keymap=$(KEYMAP)'
 
 define HELP_PREFIX
 	@printf '%*s%-10s - %s\n' '20' '$1' '' '$2'
@@ -213,8 +213,8 @@ help:
 	$(call HELP_PREFIX_OPTS,NO_MODULES=y,neither build nor install kernel modules)
 	$(call HELP_PREFIX_OPTS,MEMORY=[SIZE],set the RAM size for QEMU)
 	$(call HELP_PREFIX_OPTS,NET_BRIDGE=[IF],set your host network bridge interface)
-	$(call HELP_PREFIX_OPTS,NET_IP4=y,force IPv4 if set)
 	$(call HELP_PREFIX_OPTS,NET_HWADDR=66:66:66:66:66:66,set mac address for the qemu guest)
+	$(call HELP_PREFIX_OPTS,KEYMAP=arch/type/keymap,set a keymap which the init script tries to load)
 	$(call HELP_PREFIX_OPTS,LINUX_LOCAL=/path/to/linux,set a custom linux directory)
 	$(call HELP_PREFIX_OPTS,DEFCONFIG=y,use linux `make oldconfig` instead of `make x86_64_defconfig`)
 	$(call HELP_PREFIX_OPTS,BUILDJOBS=[NUMBER-OF-JOBS],set the maximum number of concurrent build jobs)

@@ -26,35 +26,48 @@ cat <<EOF
 Boot took $(cut -d' ' -f1 /proc/uptime) seconds
 
         _       _     __ _                  
-  /\/\ (_)_ __ (_)   / /(_)_ __  _   ___  __
- /    \| | '_ \| |  / / | | '_ \| | | \ \/ /
-/ /\/\ \ | | | | | / /__| | | | | |_| |>  < 
-\/    \/_|_| |_|_| \____/_|_| |_|\__,_/_/\_\ 
+   /\/\ (_)_ __ (_)   / /(_)_ __  _   ___  __
+  /    \| | '_ \| |  / / | | '_ \| | | \ \/ /
+ / /\/\ \ | | | | | / /__| | | | | |_| |>  < 
+ \/    \/_|_| |_|_| \____/_|_| |_|\__,_/_/\_\ 
 
-
-Welcome to mini_linux
-
+=======================
+ Welcome to mini_linux
+=======================
 
 EOF
 
 for arg in $(cat /proc/cmdline | tr '[:upper:]' '[:lower:]'); do
-    if [ x"${arg}" = xip4 ]; then
-        sysctl -w net.ipv6.conf.all.disable_ipv6=1
-    fi
-done
-
-for arg in $(cat /proc/cmdline | tr '[:upper:]' '[:lower:]'); do
-    if [ x"$(command -v udhcpc)" != x -a x"${arg}" = xnet ]; then
-        echo '*** INIT NETWORK ***'
-        for netif in $(ls /sys/class/net); do
-            ifconfig ${netif} 0.0.0.0 up
-        done
-        $(command -v udhcpc) -R -x hostname:${HOSTNAME} ${UDHCPC_ARGS}
-    fi
+	case $arg in
+		net|net=*)
+			if [ x"$(command -v udhcpc)" != x ]; then
+				if [ x"${arg#net}" = x ]; then
+					for netif in $(ls /sys/class/net); do
+						ifconfig ${netif} up
+					done
+				else
+					NETIF="${arg#net=}"
+					echo "dhcp interface: ${NETIF}"
+					ifconfig ${NETIF} up
+				fi
+				$(command -v udhcpc) -R -x hostname:${HOSTNAME} ${UDHCPC_ARGS}
+			else
+				echo 'net: Missing udhcpc'
+			fi
+		;;
+		keymap=*)
+			KEYMAP="/usr/share/keymaps/${arg#keymap=}.bmap"
+			if [ -r "${KEYMAP}" ]; then
+				echo "KEYMAP=${KEYMAP}"
+				loadkmap <"${KEYMAP}"
+			else
+				echo "keymap: Invalid path '${KEYMAP}'"
+			fi
+		;;
+	esac
 done
 
 hostname ${HOSTNAME}
-loadkmap </usr/share/keymaps/i386/qwertz/de-latin1.bmap
 cd ${HOME}
 setsid cttyhack sh
 poweroff -f
