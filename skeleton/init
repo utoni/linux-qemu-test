@@ -50,7 +50,7 @@ for arg in $(cat /proc/cmdline | tr '[:upper:]' '[:lower:]'); do
 					echo "dhcp interface: ${NETIF}"
 					ifconfig ${NETIF} up
 				fi
-				$(command -v udhcpc) -R -x hostname:${HOSTNAME} ${UDHCPC_ARGS}
+				$(command -v udhcpc) -R -x hostname:${HOSTNAME} -t 4 -n ${UDHCPC_ARGS}
 			else
 				echo 'net: Missing udhcpc'
 			fi
