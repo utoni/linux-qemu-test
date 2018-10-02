@@ -44,7 +44,7 @@ BUSYBOX_DL_SUFFIX=tar.bz2
 BUSYBOX_DL_URL=$(BUSYBOX_DL_PREFIX)/$(BUSYBOX_DL_BASENAME)-$(BUSYBOX_DL_VERSION).$(BUSYBOX_DL_SUFFIX)
 BUSYBOX_DL_FILE=$(DL_DIR)/$(BUSYBOX_DL_BASENAME)-$(BUSYBOX_DL_VERSION).$(BUSYBOX_DL_SUFFIX)
 BUSYBOX_BUILD_DIR=$(BUILD_DIR)/$(BUSYBOX_DL_BASENAME)-$(BUSYBOX_DL_VERSION)
-BUSYBOX_CFLAGS=-no-pie -I$(ROOTFS_DIR)/usr/include -specs $(ROOTFS_DIR)/lib/musl-gcc.specs -Wno-parentheses -Wno-strict-prototypes -Wno-undef
+BUSYBOX_CFLAGS=-fno-pie -I$(ROOTFS_DIR)/usr/include -specs $(ROOTFS_DIR)/lib/musl-gcc.specs -Wno-parentheses -Wno-strict-prototypes -Wno-undef
 BUSYBOX_LDFLAGS=-L$(ROOTFS_DIR)/lib
 BUSYBOX_TARGET=$(BUSYBOX_BUILD_DIR)/busybox
 
@@ -101,7 +101,7 @@ ifeq (x$(DEFCONFIG),x)
 else
 	make -C '$(LINUX_BUILD_DIR)' x86_64_defconfig
 endif
-	make -C '$(LINUX_BUILD_DIR)' kvmconfig
+	-make -C '$(LINUX_BUILD_DIR)' kvmconfig
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' bzImage
 ifeq (x$(NO_MODULES),x)
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' INSTALL_MOD_PATH='$(ROOTFS_DIR)/usr' modules
@@ -166,10 +166,10 @@ net:
 	-test -x /etc/qemu-ifup || sudo scripts/qemu-ifup linux-qemu-test
 
 qemu: image
-	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -vga qxl -display sdl -append='keymap=$(KEYMAP)'
+	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -vga qxl -display sdl -append 'keymap=$(KEYMAP)'
 
 qemu-console: image
-	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -curses -append='keymap=$(KEYMAP)'
+	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -curses -append 'keymap=$(KEYMAP)'
 
 qemu-serial: image
 	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -nographic -append 'console=ttyS0 keymap=$(KEYMAP)'
