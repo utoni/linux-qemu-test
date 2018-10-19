@@ -27,6 +27,9 @@ LINUX_DL_URL=$(LINUX_DL_PREFIX)/$(LINUX_DL_BASENAME)-$(LINUX_DL_VERSION).$(LINUX
 LINUX_DL_FILE=$(DL_DIR)/$(LINUX_DL_BASENAME)-$(LINUX_DL_VERSION).$(LINUX_DL_SUFFIX)
 LINUX_BUILD_DIR=$(BUILD_DIR)/$(LINUX_DL_BASENAME)-$(LINUX_DL_VERSION)
 LINUX_TARGET=$(LINUX_BUILD_DIR)/vmlinux
+LINUX_INSTALL_PREFIX=$(ROOTFS_DIR)/usr
+LINUX_INSTALLED_MODULES=$(LINUX_INSTALL_PREFIX)/lib/modules
+LINUX_INSTALLED_HEADERS=$(LINUX_INSTALL_PREFIX)/include/linux
 
 MUSL_DL_PREFIX=https://www.musl-libc.org/releases
 MUSL_DL_BASENAME=musl
@@ -44,7 +47,7 @@ BUSYBOX_DL_SUFFIX=tar.bz2
 BUSYBOX_DL_URL=$(BUSYBOX_DL_PREFIX)/$(BUSYBOX_DL_BASENAME)-$(BUSYBOX_DL_VERSION).$(BUSYBOX_DL_SUFFIX)
 BUSYBOX_DL_FILE=$(DL_DIR)/$(BUSYBOX_DL_BASENAME)-$(BUSYBOX_DL_VERSION).$(BUSYBOX_DL_SUFFIX)
 BUSYBOX_BUILD_DIR=$(BUILD_DIR)/$(BUSYBOX_DL_BASENAME)-$(BUSYBOX_DL_VERSION)
-BUSYBOX_CFLAGS=-fno-pie -I$(ROOTFS_DIR)/usr/include -specs $(ROOTFS_DIR)/lib/musl-gcc.specs -Wno-parentheses -Wno-strict-prototypes -Wno-undef
+BUSYBOX_CFLAGS=-I$(ROOTFS_DIR)/usr/include -specs $(ROOTFS_DIR)/lib/musl-gcc.specs -Wno-parentheses -Wno-strict-prototypes -Wno-undef
 BUSYBOX_LDFLAGS=-L$(ROOTFS_DIR)/lib
 BUSYBOX_TARGET=$(BUSYBOX_BUILD_DIR)/busybox
 
@@ -103,20 +106,24 @@ else
 endif
 	-make -C '$(LINUX_BUILD_DIR)' kvmconfig
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' bzImage
+
+$(LINUX_INSTALLED_MODULES): $(LINUX_TARGET)
 ifeq (x$(NO_MODULES),x)
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' INSTALL_MOD_PATH='$(ROOTFS_DIR)/usr' modules
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' INSTALL_MOD_PATH='$(ROOTFS_DIR)/usr' modules_install
 endif
+
+$(LINUX_INSTALLED_HEADERS): $(LINUX_TARGET)
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' INSTALL_HDR_PATH='$(ROOTFS_DIR)/usr' headers_install
 
-$(MUSL_TARGET):
+$(MUSL_TARGET): $(LINUX_INSTALLED_HEADERS)
 	cd '$(MUSL_BUILD_DIR)' && (test -r ./config.mak || ./configure --prefix='$(ROOTFS_DIR)/usr')
 	make -C '$(MUSL_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' V=1 all
 	make -C '$(MUSL_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' install
 	test -e '$(ROOTFS_DIR)/lib' || ln -sr '$(ROOTFS_DIR)/usr/lib' '$(ROOTFS_DIR)/lib'
 	test -e '$(ROOTFS_DIR)/lib/ld-musl-$(ARCH).so.1' || ln -sr '$(ROOTFS_DIR)/lib/libc.so' '$(ROOTFS_DIR)/lib/ld-musl-$(ARCH).so.1'
 
-$(BUSYBOX_TARGET):
+$(BUSYBOX_TARGET): $(MUSL_TARGET)
 	cp -v '$(CFG_DIR)/busybox.config' '$(BUSYBOX_BUILD_DIR)/.config'
 	sed -i 's,^\(CONFIG_EXTRA_CFLAGS[ ]*=\).*,\1"$(BUSYBOX_CFLAGS)",g'   '$(BUSYBOX_BUILD_DIR)/.config'
 	sed -i 's,^\(CONFIG_EXTRA_LDFLAGS[ ]*=\).*,\1"$(BUSYBOX_LDFLAGS)",g' '$(BUSYBOX_BUILD_DIR)/.config'
@@ -128,15 +135,7 @@ $(BUSYBOX_TARGET):
 	sed -i 's,^\(CONFIG_EXTRA_LDFLAGS[ ]*=\).*,\1"",g'    '$(BUSYBOX_BUILD_DIR)/.config'
 	sed -i 's,^\(CONFIG_PREFIX[ ]*=\).*,\1"./_install",g' '$(BUSYBOX_BUILD_DIR)/.config'
 
-define DO_BUILD_LINUX
-	make '$(LINUX_TARGET)'
-endef
-
-build-linux:
-	rm -f '$(LINUX_TARGET)'
-	$(DO_BUILD_LINUX)
-
-build: extract $(LINUX_TARGET) $(MUSL_TARGET) $(BUSYBOX_TARGET)
+build: extract $(LINUX_TARGET) $(LINUX_INSTALLED_MODULES) $(MUSL_TARGET) $(BUSYBOX_TARGET)
 
 $(INITRD_TARGET): $(ROOTFS_DIR)/bin/busybox
 	cp -rfvTp '$(SKEL_DIR)'           '$(ROOTFS_DIR)'
@@ -150,6 +149,7 @@ endef
 
 force-remove:
 	rm -f $(LINUX_TARGET) $(MUSL_TARGET) $(BUSYBOX_TARGET)
+	rm -rf $(LINUX_INSTALLED_HEADERS) $(LINUX_INSTALLED_MODULES)
 	rm -f '$(INITRD_TARGET)'
 
 image-rebuild: force-remove
@@ -197,7 +197,6 @@ help:
 	$(call HELP_PREFIX,dl,download all sources)
 	$(call HELP_PREFIX,extract,extract all sources)
 	$(call HELP_PREFIX,build,build LinuxKernel/musl/BusyBox)
-	$(call HELP_PREFIX,build-linux,force LinuxKernel rebuild)
 	$(call HELP_PREFIX,force-remove,remove linux/musl/busybox and initramfs targets)
 	$(call HELP_PREFIX,image,create initramfs cpio archive)
 	$(call HELP_PREFIX,image-rebuild,force recreation of rootfs)
@@ -219,4 +218,4 @@ help:
 	$(call HELP_PREFIX_OPTS,DEFCONFIG=y,use linux `make oldconfig` instead of `make x86_64_defconfig`)
 	$(call HELP_PREFIX_OPTS,BUILDJOBS=[NUMBER-OF-JOBS],set the maximum number of concurrent build jobs)
 
-.PHONY: all pre dl extract build build-linux image image-rebuild image-repack net qemu qemu-console qemu-serial qemu-serial-net qemu-net help
+.PHONY: all pre dl extract build image image-rebuild image-repack net qemu qemu-console qemu-serial qemu-serial-net qemu-net help
