@@ -1,0 +1,13 @@
+language: c
+sudo: required
+os:
+- linnux
+compiler:
+- gcc
+before_install:
+- sudo apt-get -qq update
+- sudo apt-get install -y -qq coreutils make autoconf automake gcc build-essential libelf-dev
+script:
+- make -s DEFCONFIG=y &
+- while (test x$(pidof make) != x); do echo -n '.'; sleep 1; done
+- echo
