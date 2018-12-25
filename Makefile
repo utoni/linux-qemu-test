@@ -1,5 +1,5 @@
 ARCH=$(shell uname -m)
-MEMORY ?= 64
+MEMORY ?= 128
 NET_BRIDGE ?= br0
 NET_HWADDR ?= 66:66:66:66:66:66
 KEYMAP ?= i386/qwertz/de-latin1
@@ -16,6 +16,10 @@ ROOTFS_DIR=$(THIS_DIR)/rootfs
 CFG_DIR=$(THIS_DIR)/config
 SCRIPT_DIR=$(THIS_DIR)/scripts
 SKEL_DIR=$(THIS_DIR)/skeleton
+
+GOBUILD=$(SCRIPT_DIR)/go-build.sh
+GOPATH=$(BUILD_DIR)/go
+GODEPS=$(shell $(GOBUILD) $(GOPATH) deps)
 
 INITRD_TARGET=$(THIS_DIR)/initramfs.cpio.gz
 
@@ -136,6 +140,15 @@ $(BUSYBOX_TARGET): $(MUSL_TARGET) $(LINUX_INSTALLED_HEADERS)
 	sed -i 's,^\(CONFIG_EXTRA_LDFLAGS[ ]*=\).*,\1"",g'    '$(BUSYBOX_BUILD_DIR)/.config'
 	sed -i 's,^\(CONFIG_PREFIX[ ]*=\).*,\1"./_install",g' '$(BUSYBOX_BUILD_DIR)/.config'
 
+$(GODEPS):
+	$(GOBUILD) '$(GOPATH)' build '$@'
+
+go-build: $(GODEPS)
+	$(GOBUILD) '$(GOPATH)' extra
+	$(GOBUILD) '$(GOPATH)' install '$(ROOTFS_DIR)'
+
+go-install: go-build image-repack
+
 build: extract $(LINUX_TARGET) $(LINUX_INSTALLED_MODULES) $(MUSL_TARGET) $(BUSYBOX_TARGET)
 
 $(INITRD_TARGET): $(LINUX_TARGET) $(LINUX_INSTALLED_MODULES) $(MUSL_TARGET) $(BUSYBOX_TARGET)
@@ -198,6 +211,8 @@ help:
 	$(call HELP_PREFIX,dl,download all sources)
 	$(call HELP_PREFIX,extract,extract all sources)
 	$(call HELP_PREFIX,build,build LinuxKernel/musl/BusyBox)
+	$(call HELP_PREFIX,go-build,download and build deps/apps)
+	$(call HELP_PREFIX,go-install,install apps into the rootfs)
 	$(call HELP_PREFIX,force-remove,remove linux/musl/busybox and initramfs targets)
 	$(call HELP_PREFIX,image,create initramfs cpio archive)
 	$(call HELP_PREFIX,image-rebuild,force recreation of rootfs)
@@ -219,4 +234,4 @@ help:
 	$(call HELP_PREFIX_OPTS,DEFCONFIG=y,use linux `make oldconfig` instead of `make x86_64_defconfig`)
 	$(call HELP_PREFIX_OPTS,BUILDJOBS=[NUMBER-OF-JOBS],set the maximum number of concurrent build jobs)
 
-.PHONY: all pre dl extract build image image-rebuild image-repack net qemu qemu-console qemu-serial qemu-serial-net qemu-net help
+.PHONY: all pre dl extract build go-build go-install image image-rebuild image-repack net qemu qemu-console qemu-serial qemu-serial-net qemu-net help
