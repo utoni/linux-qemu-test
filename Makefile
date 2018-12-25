@@ -117,13 +117,14 @@ $(LINUX_INSTALLED_HEADERS): $(LINUX_TARGET)
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' INSTALL_HDR_PATH='$(ROOTFS_DIR)/usr' headers_install
 
 $(MUSL_TARGET): $(LINUX_INSTALLED_HEADERS)
+	rm -f $(MUSL_TARGET)
 	cd '$(MUSL_BUILD_DIR)' && (test -r ./config.mak || ./configure --prefix='$(ROOTFS_DIR)/usr')
 	make -C '$(MUSL_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' V=1 all
 	make -C '$(MUSL_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' install
 	test -e '$(ROOTFS_DIR)/lib' || ln -sr '$(ROOTFS_DIR)/usr/lib' '$(ROOTFS_DIR)/lib'
 	test -e '$(ROOTFS_DIR)/lib/ld-musl-$(ARCH).so.1' || ln -sr '$(ROOTFS_DIR)/lib/libc.so' '$(ROOTFS_DIR)/lib/ld-musl-$(ARCH).so.1'
 
-$(BUSYBOX_TARGET): $(MUSL_TARGET)
+$(BUSYBOX_TARGET): $(MUSL_TARGET) $(LINUX_INSTALLED_HEADERS)
 	cp -v '$(CFG_DIR)/busybox.config' '$(BUSYBOX_BUILD_DIR)/.config'
 	sed -i 's,^\(CONFIG_EXTRA_CFLAGS[ ]*=\).*,\1"$(BUSYBOX_CFLAGS)",g'   '$(BUSYBOX_BUILD_DIR)/.config'
 	sed -i 's,^\(CONFIG_EXTRA_LDFLAGS[ ]*=\).*,\1"$(BUSYBOX_LDFLAGS)",g' '$(BUSYBOX_BUILD_DIR)/.config'
@@ -137,7 +138,7 @@ $(BUSYBOX_TARGET): $(MUSL_TARGET)
 
 build: extract $(LINUX_TARGET) $(LINUX_INSTALLED_MODULES) $(MUSL_TARGET) $(BUSYBOX_TARGET)
 
-$(INITRD_TARGET): $(ROOTFS_DIR)/bin/busybox
+$(INITRD_TARGET): $(LINUX_TARGET) $(LINUX_INSTALLED_MODULES) $(MUSL_TARGET) $(BUSYBOX_TARGET)
 	cp -rfvTp '$(SKEL_DIR)'           '$(ROOTFS_DIR)'
 	cd '$(ROOTFS_DIR)' && find . -print0 | cpio --owner 0:0 --null -ov --format=newc | gzip -9 > '$(INITRD_TARGET)'
 
