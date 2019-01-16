@@ -83,17 +83,17 @@ dl: pre $(LINUX_DL_FILE) $(MUSL_DL_FILE) $(BUSYBOX_DL_FILE)
 
 $(LINUX_BUILD_DIR)/Makefile:
 ifeq (x$(LINUX_LOCAL),x)
-	tar --strip-components=1 -C '$(LINUX_BUILD_DIR)' -xvf '$(LINUX_DL_FILE)' || (rm -rf '$(LINUX_BUILD_DIR)' && false)
+	tar --strip-components=1 -C '$(LINUX_BUILD_DIR)' -xvf '$(LINUX_DL_FILE)' >/dev/null || (rm -rf '$(LINUX_BUILD_DIR)' && false)
 else
 	rmdir '$(LINUX_BUILD_DIR)'
 	ln -s '$(LINUX_LOCAL)' '$(LINUX_BUILD_DIR)'
 endif
 
 $(MUSL_BUILD_DIR)/Makefile:
-	tar --strip-components=1 -C '$(MUSL_BUILD_DIR)' -xvzf '$(MUSL_DL_FILE)' || (rm -rf '$(MUSL_BUILD_DIR)' && false)
+	tar --strip-components=1 -C '$(MUSL_BUILD_DIR)' -xvzf '$(MUSL_DL_FILE)' >/dev/null || (rm -rf '$(MUSL_BUILD_DIR)' && false)
 
 $(BUSYBOX_BUILD_DIR)/Makefile:
-	tar --strip-components=1 -C '$(BUSYBOX_BUILD_DIR)' -xvjf '$(BUSYBOX_DL_FILE)' || (rm -rf '$(BUSYBOX_BUILD_DIR)' && false)
+	tar --strip-components=1 -C '$(BUSYBOX_BUILD_DIR)' -xvjf '$(BUSYBOX_DL_FILE)' >/dev/null || (rm -rf '$(BUSYBOX_BUILD_DIR)' && false)
 
 extract: dl $(LINUX_BUILD_DIR)/Makefile $(MUSL_BUILD_DIR)/Makefile $(BUSYBOX_BUILD_DIR)/Makefile
 
