@@ -19,9 +19,9 @@ SKEL_DIR=$(THIS_DIR)/skeleton
 
 INITRD_TARGET=$(THIS_DIR)/initramfs.cpio.gz
 
-LINUX_DL_PREFIX=https://cdn.kernel.org/pub/linux/kernel/v4.x
+LINUX_DL_PREFIX=https://cdn.kernel.org/pub/linux/kernel/v5.x
 LINUX_DL_BASENAME=linux
-LINUX_DL_VERSION=4.18
+LINUX_DL_VERSION=5.8.8
 LINUX_DL_SUFFIX=tar.xz
 LINUX_DL_URL=$(LINUX_DL_PREFIX)/$(LINUX_DL_BASENAME)-$(LINUX_DL_VERSION).$(LINUX_DL_SUFFIX)
 LINUX_DL_FILE=$(DL_DIR)/$(LINUX_DL_BASENAME)-$(LINUX_DL_VERSION).$(LINUX_DL_SUFFIX)
@@ -33,7 +33,7 @@ LINUX_INSTALLED_HEADERS=$(LINUX_INSTALL_PREFIX)/include/linux
 
 MUSL_DL_PREFIX=https://www.musl-libc.org/releases
 MUSL_DL_BASENAME=musl
-MUSL_DL_VERSION=1.1.19
+MUSL_DL_VERSION=1.2.1
 MUSL_DL_SUFFIX=tar.gz
 MUSL_DL_URL=$(MUSL_DL_PREFIX)/$(MUSL_DL_BASENAME)-$(MUSL_DL_VERSION).$(MUSL_DL_SUFFIX)
 MUSL_DL_FILE=$(DL_DIR)/$(MUSL_DL_BASENAME)-$(MUSL_DL_VERSION).$(MUSL_DL_SUFFIX)
@@ -42,7 +42,7 @@ MUSL_TARGET=$(MUSL_BUILD_DIR)/lib/libc.so
 
 BUSYBOX_DL_PREFIX=https://busybox.net/downloads
 BUSYBOX_DL_BASENAME=busybox
-BUSYBOX_DL_VERSION=1.29.2
+BUSYBOX_DL_VERSION=1.31.0
 BUSYBOX_DL_SUFFIX=tar.bz2
 BUSYBOX_DL_URL=$(BUSYBOX_DL_PREFIX)/$(BUSYBOX_DL_BASENAME)-$(BUSYBOX_DL_VERSION).$(BUSYBOX_DL_SUFFIX)
 BUSYBOX_DL_FILE=$(DL_DIR)/$(BUSYBOX_DL_BASENAME)-$(BUSYBOX_DL_VERSION).$(BUSYBOX_DL_SUFFIX)
@@ -69,7 +69,7 @@ $(BUSYBOX_BUILD_DIR):
 pre: $(DL_DIR) $(BUILD_DIR) $(ROOTFS_DIR) $(LINUX_BUILD_DIR) $(MUSL_BUILD_DIR) $(BUSYBOX_BUILD_DIR)
 
 $(LINUX_DL_FILE):
-ifneq ($(LINUX_LOCAL),)
+ifeq ($(LINUX_LOCAL),)
 	wget '$(LINUX_DL_URL)' -O '$@' || (rm -f '$(LINUX_DL_FILE)' && false)
 endif
 
@@ -82,7 +82,7 @@ $(BUSYBOX_DL_FILE):
 dl: pre $(LINUX_DL_FILE) $(MUSL_DL_FILE) $(BUSYBOX_DL_FILE)
 
 $(LINUX_BUILD_DIR)/Makefile:
-ifneq ($(LINUX_LOCAL),)
+ifeq ($(LINUX_LOCAL),)
 	tar --strip-components=1 -C '$(LINUX_BUILD_DIR)' -xvf '$(LINUX_DL_FILE)' >/dev/null || (rm -rf '$(LINUX_BUILD_DIR)' && false)
 else
 	rmdir '$(LINUX_BUILD_DIR)'
@@ -123,13 +123,18 @@ $(MUSL_TARGET): $(LINUX_INSTALLED_HEADERS)
 	make -C '$(MUSL_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' install
 	test -e '$(ROOTFS_DIR)/lib' || ln -sr '$(ROOTFS_DIR)/usr/lib' '$(ROOTFS_DIR)/lib'
 	test -e '$(ROOTFS_DIR)/lib/ld-musl-$(ARCH).so.1' || ln -sr '$(ROOTFS_DIR)/lib/libc.so' '$(ROOTFS_DIR)/lib/ld-musl-$(ARCH).so.1'
+	rm '$(ROOTFS_DIR)/usr/bin/musl-gcc'
 
 $(BUSYBOX_TARGET): $(MUSL_TARGET) $(LINUX_INSTALLED_HEADERS)
 	cp -v '$(CFG_DIR)/busybox.config' '$(BUSYBOX_BUILD_DIR)/.config'
 	sed -i 's,^\(CONFIG_EXTRA_CFLAGS[ ]*=\).*,\1"$(BUSYBOX_CFLAGS)",g'   '$(BUSYBOX_BUILD_DIR)/.config'
 	sed -i 's,^\(CONFIG_EXTRA_LDFLAGS[ ]*=\).*,\1"$(BUSYBOX_LDFLAGS)",g' '$(BUSYBOX_BUILD_DIR)/.config'
 	sed -i 's,^\(CONFIG_PREFIX[ ]*=\).*,\1"$(ROOTFS_DIR)",g'             '$(BUSYBOX_BUILD_DIR)/.config'
+ifneq ($(DEFCONFIG),y)
 	make -C '$(BUSYBOX_BUILD_DIR)' oldconfig
+else
+	make -C '$(BUSYBOX_BUILD_DIR)' defconfig
+endif
 	make -C '$(BUSYBOX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' V=1 all
 	make -C '$(BUSYBOX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' install
 	sed -i 's,^\(CONFIG_EXTRA_CFLAGS[ ]*=\).*,\1"",g'     '$(BUSYBOX_BUILD_DIR)/.config'
