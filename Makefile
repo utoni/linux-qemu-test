@@ -1,5 +1,6 @@
 ARCH=$(shell uname -m)
 MEMORY ?= 128
+NET_QEMU_TAP ?= linux-qemu-test
 NET_BRIDGE ?= br0
 NET_HWADDR ?= 66:66:66:66:66:66
 KEYMAP ?= i386/qwertz/de-latin1
@@ -167,9 +168,12 @@ image-repack:
 	$(DO_BUILD)
 
 net:
-	-sudo ip tuntap add linux-qemu-test mode tap
-	-test -x /etc/qemu-ifup && sudo /etc/qemu-ifup linux-qemu-test
-	-test -x /etc/qemu-ifup || sudo scripts/qemu-ifup linux-qemu-test
+	sudo ip tuntap add $(NET_QEMU_TAP) mode tap
+	sudo ip link set dev $(NET_QEMU_TAP) up
+	sudo ip link set dev $(NET_QEMU_TAP) master $(NET_BRIDGE)
+
+net-clean:
+	sudo ip link delete $(NET_QEMU_TAP)
 
 qemu: image
 	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -vga qxl -display sdl -append 'keymap=$(KEYMAP)'
@@ -181,14 +185,12 @@ qemu-serial: image
 	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -nographic -append 'console=ttyS0 keymap=$(KEYMAP)'
 
 qemu-serial-net: image
-	brctl show $(NET_BRIDGE)
 	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -nographic \
-		-net nic,macaddr=$(NET_HWADDR) -net tap,ifname=linux-qemu-test,br=$(NET_BRIDGE),script=no,downscript=no -append 'net console=ttyS0 keymap=$(KEYMAP)'
+		-net nic,macaddr=$(NET_HWADDR) -net tap,ifname=$(NET_QEMU_TAP),br=$(NET_BRIDGE),script=no,downscript=no -append 'net console=ttyS0 keymap=$(KEYMAP)'
 
 qemu-net: image
-	brctl show $(NET_BRIDGE)
 	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -vga qxl -display sdl \
-		-net nic,macaddr=$(NET_HWADDR) -net tap,ifname=linux-qemu-test,br=$(NET_BRIDGE),script=no,downscript=no -append 'net keymap=$(KEYMAP)'
+		-net nic,macaddr=$(NET_HWADDR) -net tap,ifname=$(NET_QEMU_TAP),br=$(NET_BRIDGE),script=no,downscript=no -append 'net keymap=$(KEYMAP)'
 
 define HELP_PREFIX
 	@printf '%*s%-10s - %s\n' '20' '$1' '' '$2'
@@ -219,6 +221,7 @@ help:
 	@echo -e '\tAdditional make options:'
 	$(call HELP_PREFIX_OPTS,NO_MODULES=$(NO_MODULES),neither build nor install kernel modules)
 	$(call HELP_PREFIX_OPTS,MEMORY=$(MEMORY),set the RAM size for QEMU in MBytes)
+	$(call HELP_PREFIX_OPTS,NET_QEMU_TAP=$(NET_QEMU_TAP),set the ifname which QEMU will use as TAP device (run `make net` before))
 	$(call HELP_PREFIX_OPTS,NET_BRIDGE=$(NET_BRIDGE),set your host network bridge interface)
 	$(call HELP_PREFIX_OPTS,NET_HWADDR=$(NET_HWADDR),set mac address for the qemu guest)
 	$(call HELP_PREFIX_OPTS,KEYMAP=$(KEYMAP),set a keymap which the init script tries to load)
