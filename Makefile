@@ -1,11 +1,11 @@
 ARCH=$(shell uname -m)
-MEMORY ?= 64
+MEMORY ?= 128
 NET_BRIDGE ?= br0
 NET_HWADDR ?= 66:66:66:66:66:66
 KEYMAP ?= i386/qwertz/de-latin1
 LINUX_LOCAL ?=
-DEFCONFIG ?=
-NO_MODULES ?=
+DEFCONFIG ?= n
+NO_MODULES ?= n
 
 BUILDJOBS ?= $(shell cat /proc/cpuinfo | grep -o '^processor' | wc -l)
 THIS_DIR=$(realpath .)
@@ -69,7 +69,7 @@ $(BUSYBOX_BUILD_DIR):
 pre: $(DL_DIR) $(BUILD_DIR) $(ROOTFS_DIR) $(LINUX_BUILD_DIR) $(MUSL_BUILD_DIR) $(BUSYBOX_BUILD_DIR)
 
 $(LINUX_DL_FILE):
-ifeq (x$(LINUX_LOCAL),x)
+ifneq ($(LINUX_LOCAL),)
 	wget '$(LINUX_DL_URL)' -O '$@' || (rm -f '$(LINUX_DL_FILE)' && false)
 endif
 
@@ -82,7 +82,7 @@ $(BUSYBOX_DL_FILE):
 dl: pre $(LINUX_DL_FILE) $(MUSL_DL_FILE) $(BUSYBOX_DL_FILE)
 
 $(LINUX_BUILD_DIR)/Makefile:
-ifeq (x$(LINUX_LOCAL),x)
+ifneq ($(LINUX_LOCAL),)
 	tar --strip-components=1 -C '$(LINUX_BUILD_DIR)' -xvf '$(LINUX_DL_FILE)' >/dev/null || (rm -rf '$(LINUX_BUILD_DIR)' && false)
 else
 	rmdir '$(LINUX_BUILD_DIR)'
@@ -99,7 +99,7 @@ extract: dl $(LINUX_BUILD_DIR)/Makefile $(MUSL_BUILD_DIR)/Makefile $(BUSYBOX_BUI
 
 $(LINUX_TARGET):
 	cp -v '$(CFG_DIR)/linux.config' '$(LINUX_BUILD_DIR)/.config'
-ifeq (x$(DEFCONFIG),x)
+ifneq ($(DEFCONFIG),y)
 	make -C '$(LINUX_BUILD_DIR)' oldconfig
 else
 	make -C '$(LINUX_BUILD_DIR)' x86_64_defconfig
@@ -108,7 +108,7 @@ endif
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' bzImage
 
 $(LINUX_INSTALLED_MODULES): $(LINUX_TARGET)
-ifeq (x$(NO_MODULES),x)
+ifneq ($(NO_MODULES),y)
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' INSTALL_MOD_PATH='$(ROOTFS_DIR)/usr' modules
 	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' INSTALL_MOD_PATH='$(ROOTFS_DIR)/usr' modules_install
 endif
@@ -176,10 +176,12 @@ qemu-serial: image
 	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -nographic -append 'console=ttyS0 keymap=$(KEYMAP)'
 
 qemu-serial-net: image
+	brctl show $(NET_BRIDGE)
 	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -nographic \
 		-net nic,macaddr=$(NET_HWADDR) -net tap,ifname=linux-qemu-test,br=$(NET_BRIDGE),script=no,downscript=no -append 'net console=ttyS0 keymap=$(KEYMAP)'
 
 qemu-net: image
+	brctl show $(NET_BRIDGE)
 	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -vga qxl -display sdl \
 		-net nic,macaddr=$(NET_HWADDR) -net tap,ifname=linux-qemu-test,br=$(NET_BRIDGE),script=no,downscript=no -append 'net keymap=$(KEYMAP)'
 
@@ -210,13 +212,13 @@ help:
 	$(call HELP_PREFIX,qemu-net,test your kernel/initramfs combination with QEMU and network support through TAP)
 	@echo
 	@echo -e '\tAdditional make options:'
-	$(call HELP_PREFIX_OPTS,NO_MODULES=y,neither build nor install kernel modules)
-	$(call HELP_PREFIX_OPTS,MEMORY=[SIZE],set the RAM size for QEMU)
-	$(call HELP_PREFIX_OPTS,NET_BRIDGE=[IF],set your host network bridge interface)
-	$(call HELP_PREFIX_OPTS,NET_HWADDR=66:66:66:66:66:66,set mac address for the qemu guest)
-	$(call HELP_PREFIX_OPTS,KEYMAP=arch/type/keymap,set a keymap which the init script tries to load)
-	$(call HELP_PREFIX_OPTS,LINUX_LOCAL=/path/to/linux,set a custom linux directory)
-	$(call HELP_PREFIX_OPTS,DEFCONFIG=y,use linux `make oldconfig` instead of `make x86_64_defconfig`)
-	$(call HELP_PREFIX_OPTS,BUILDJOBS=[NUMBER-OF-JOBS],set the maximum number of concurrent build jobs)
+	$(call HELP_PREFIX_OPTS,NO_MODULES=$(NO_MODULES),neither build nor install kernel modules)
+	$(call HELP_PREFIX_OPTS,MEMORY=$(MEMORY),set the RAM size for QEMU in MBytes)
+	$(call HELP_PREFIX_OPTS,NET_BRIDGE=$(NET_BRIDGE),set your host network bridge interface)
+	$(call HELP_PREFIX_OPTS,NET_HWADDR=$(NET_HWADDR),set mac address for the qemu guest)
+	$(call HELP_PREFIX_OPTS,KEYMAP=$(KEYMAP),set a keymap which the init script tries to load)
+	$(call HELP_PREFIX_OPTS,LINUX_LOCAL=$(LINUX_LOCAL),set a custom linux source directory)
+	$(call HELP_PREFIX_OPTS,DEFCONFIG=$(DEFCONFIG),use linux `make $(DEFCONFIG_NAME)` instead of `make oldconfig`)
+	$(call HELP_PREFIX_OPTS,BUILDJOBS=$(BUILDJOBS),set the maximum number of concurrent build jobs)
 
 .PHONY: all pre dl extract build image image-rebuild image-repack net qemu qemu-console qemu-serial qemu-serial-net qemu-net help
