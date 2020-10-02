@@ -66,6 +66,7 @@ for arg in $(cat /proc/cmdline | tr '[:upper:]' '[:lower:]'); do
 	esac
 done
 
+resize
 hostname ${HOSTNAME}
 cd ${HOME}
 setsid cttyhack sh

@@ -7,6 +7,7 @@ KEYMAP ?= i386/qwertz/de-latin1
 LINUX_LOCAL ?=
 DEFCONFIG ?= n
 NO_MODULES ?= n
+USE_GDB ?= n
 
 BUILDJOBS ?= $(shell cat /proc/cpuinfo | grep -o '^processor' | wc -l)
 THIS_DIR=$(realpath .)
@@ -53,6 +54,7 @@ BUSYBOX_LDFLAGS=-L$(ROOTFS_DIR)/lib
 BUSYBOX_TARGET=$(BUSYBOX_BUILD_DIR)/busybox
 
 all: pre dl extract build image
+	@echo 'Finished.'
 
 $(DL_DIR):
 	mkdir -p '$@'
@@ -175,22 +177,40 @@ net:
 net-clean:
 	sudo ip link delete $(NET_QEMU_TAP)
 
+ifeq ($(USE_GDB),y)
+QEMU_ARGS += -s -S
+endif
+
+qemu-gdb-connect:
+	gdb -s '$(LINUX_BUILD_DIR)/vmlinux' -x ./qemu-gdb.cmds
+
 qemu: image
-	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -vga qxl -display sdl -append 'keymap=$(KEYMAP)'
+	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' \
+		-enable-kvm -m $(MEMORY) -vga qxl -display sdl \
+		-append 'nokaslr keymap=$(KEYMAP)' $(QEMU_ARGS)
 
 qemu-console: image
-	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -curses -append 'keymap=$(KEYMAP)'
+	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' \
+		-enable-kvm -m $(MEMORY) -curses \
+		-append 'nokaslr keymap=$(KEYMAP)' $(QEMU_ARGS)
 
 qemu-serial: image
-	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -nographic -append 'console=ttyS0 keymap=$(KEYMAP)'
+	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' \
+		-enable-kvm -m $(MEMORY) -nographic \
+		-append 'nokaslr console=ttyS0 keymap=$(KEYMAP)' $(QEMU_ARGS)
 
 qemu-serial-net: image
-	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -nographic \
-		-net nic,macaddr=$(NET_HWADDR) -net tap,ifname=$(NET_QEMU_TAP),br=$(NET_BRIDGE),script=no,downscript=no -append 'net console=ttyS0 keymap=$(KEYMAP)'
+	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' \
+		-enable-kvm -m $(MEMORY) -nographic \
+		-net nic,macaddr=$(NET_HWADDR) -net tap,ifname=$(NET_QEMU_TAP),br=$(NET_BRIDGE),script=no,downscript=no \
+		-append 'nokaslr net console=ttyS0 keymap=$(KEYMAP)' \
+		$(QEMU_ARGS)
 
 qemu-net: image
-	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' -enable-kvm -m $(MEMORY) -vga qxl -display sdl \
-		-net nic,macaddr=$(NET_HWADDR) -net tap,ifname=$(NET_QEMU_TAP),br=$(NET_BRIDGE),script=no,downscript=no -append 'net keymap=$(KEYMAP)'
+	qemu-system-$(ARCH) -kernel '$(LINUX_BUILD_DIR)/arch/$(ARCH)/boot/bzImage' -initrd '$(INITRD_TARGET)' \
+		-enable-kvm -m $(MEMORY) -vga qxl -display sdl \
+		-net nic,macaddr=$(NET_HWADDR) -net tap,ifname=$(NET_QEMU_TAP),br=$(NET_BRIDGE),script=no,downscript=no \
+		-append 'nokaslr net keymap=$(KEYMAP)' $(QEMU_ARGS)
 
 define HELP_PREFIX
 	@printf '%*s%-10s - %s\n' '20' '$1' '' '$2'
@@ -219,6 +239,7 @@ help:
 	$(call HELP_PREFIX,qemu-net,test your kernel/initramfs combination with QEMU and network support through TAP)
 	@echo
 	@echo -e '\tAdditional make options:'
+	$(call HELP_PREFIX_OPTS,USE_GDB=$(USE_GDB),start QEMU with debugging capabilities enabled)
 	$(call HELP_PREFIX_OPTS,NO_MODULES=$(NO_MODULES),neither build nor install kernel modules)
 	$(call HELP_PREFIX_OPTS,MEMORY=$(MEMORY),set the RAM size for QEMU in MBytes)
 	$(call HELP_PREFIX_OPTS,NET_QEMU_TAP=$(NET_QEMU_TAP),set the ifname which QEMU will use as TAP device (run `make net` before))
