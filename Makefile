@@ -49,7 +49,7 @@ BUSYBOX_DL_SUFFIX=tar.bz2
 BUSYBOX_DL_URL=$(BUSYBOX_DL_PREFIX)/$(BUSYBOX_DL_BASENAME)-$(BUSYBOX_DL_VERSION).$(BUSYBOX_DL_SUFFIX)
 BUSYBOX_DL_FILE=$(DL_DIR)/$(BUSYBOX_DL_BASENAME)-$(BUSYBOX_DL_VERSION).$(BUSYBOX_DL_SUFFIX)
 BUSYBOX_BUILD_DIR=$(BUILD_DIR)/$(BUSYBOX_DL_BASENAME)-$(BUSYBOX_DL_VERSION)
-BUSYBOX_CFLAGS=-I$(ROOTFS_DIR)/usr/include -specs $(ROOTFS_DIR)/lib/musl-gcc.specs -Wno-parentheses -Wno-strict-prototypes -Wno-undef
+BUSYBOX_CFLAGS=-I'$(ROOTFS_DIR)/usr/include' -specs '$(MUSL_BUILD_DIR)/lib/musl-gcc.specs'
 BUSYBOX_LDFLAGS=-L$(ROOTFS_DIR)/lib
 BUSYBOX_TARGET=$(BUSYBOX_BUILD_DIR)/busybox
 
@@ -121,28 +121,26 @@ $(LINUX_INSTALLED_HEADERS): $(LINUX_TARGET)
 
 $(MUSL_TARGET): $(LINUX_INSTALLED_HEADERS)
 	rm -f $(MUSL_TARGET)
-	cd '$(MUSL_BUILD_DIR)' && (test -r ./config.mak || ./configure --prefix='$(ROOTFS_DIR)/usr')
+	cd '$(MUSL_BUILD_DIR)' && (test -r ./config.mak || ./configure --prefix='$(ROOTFS_DIR)/usr' --enable-wrapper=yes)
 	make -C '$(MUSL_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' V=1 all
 	make -C '$(MUSL_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' install
 	test -e '$(ROOTFS_DIR)/lib' || ln -sr '$(ROOTFS_DIR)/usr/lib' '$(ROOTFS_DIR)/lib'
 	test -e '$(ROOTFS_DIR)/lib/ld-musl-$(ARCH).so.1' || ln -sr '$(ROOTFS_DIR)/lib/libc.so' '$(ROOTFS_DIR)/lib/ld-musl-$(ARCH).so.1'
-	rm '$(ROOTFS_DIR)/usr/bin/musl-gcc'
+	rm '$(ROOTFS_DIR)/usr/bin/musl-gcc' '$(ROOTFS_DIR)/lib/musl-gcc.specs'
 
 $(BUSYBOX_TARGET): $(MUSL_TARGET) $(LINUX_INSTALLED_HEADERS)
 	cp -v '$(CFG_DIR)/busybox.config' '$(BUSYBOX_BUILD_DIR)/.config'
-	sed -i 's,^\(CONFIG_EXTRA_CFLAGS[ ]*=\).*,\1"$(BUSYBOX_CFLAGS)",g'   '$(BUSYBOX_BUILD_DIR)/.config'
-	sed -i 's,^\(CONFIG_EXTRA_LDFLAGS[ ]*=\).*,\1"$(BUSYBOX_LDFLAGS)",g' '$(BUSYBOX_BUILD_DIR)/.config'
-	sed -i 's,^\(CONFIG_PREFIX[ ]*=\).*,\1"$(ROOTFS_DIR)",g'             '$(BUSYBOX_BUILD_DIR)/.config'
 ifneq ($(DEFCONFIG),y)
 	make -C '$(BUSYBOX_BUILD_DIR)' oldconfig
 else
 	make -C '$(BUSYBOX_BUILD_DIR)' defconfig
 endif
+	test -r '$(MUSL_BUILD_DIR)/lib/musl-gcc.specs'
+	sed -i 's,^\(CONFIG_EXTRA_CFLAGS[ ]*=\).*,\1"$(BUSYBOX_CFLAGS)",g'   '$(BUSYBOX_BUILD_DIR)/.config'
+	sed -i 's,^\(CONFIG_EXTRA_LDFLAGS[ ]*=\).*,\1"$(BUSYBOX_LDFLAGS)",g' '$(BUSYBOX_BUILD_DIR)/.config'
+	sed -i 's,^\(CONFIG_PREFIX[ ]*=\).*,\1"$(ROOTFS_DIR)",g'             '$(BUSYBOX_BUILD_DIR)/.config'
 	make -C '$(BUSYBOX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' V=1 all
 	make -C '$(BUSYBOX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' install
-	sed -i 's,^\(CONFIG_EXTRA_CFLAGS[ ]*=\).*,\1"",g'     '$(BUSYBOX_BUILD_DIR)/.config'
-	sed -i 's,^\(CONFIG_EXTRA_LDFLAGS[ ]*=\).*,\1"",g'    '$(BUSYBOX_BUILD_DIR)/.config'
-	sed -i 's,^\(CONFIG_PREFIX[ ]*=\).*,\1"./_install",g' '$(BUSYBOX_BUILD_DIR)/.config'
 
 build: extract $(LINUX_TARGET) $(LINUX_INSTALLED_MODULES) $(MUSL_TARGET) $(BUSYBOX_TARGET)
 
