@@ -9,7 +9,6 @@ DEFCONFIG ?= n
 NO_MODULES ?= n
 USE_GDB ?= n
 
-BUILDJOBS ?= $(shell cat /proc/cpuinfo | grep -o '^processor' | wc -l)
 THIS_DIR=$(realpath .)
 
 DL_DIR=$(THIS_DIR)/dl
@@ -23,7 +22,7 @@ INITRD_TARGET=$(THIS_DIR)/initramfs.cpio.gz
 
 LINUX_DL_PREFIX=https://cdn.kernel.org/pub/linux/kernel/v5.x
 LINUX_DL_BASENAME=linux
-LINUX_DL_VERSION=5.8.8
+LINUX_DL_VERSION=5.10.67
 LINUX_DL_SUFFIX=tar.xz
 LINUX_DL_URL=$(LINUX_DL_PREFIX)/$(LINUX_DL_BASENAME)-$(LINUX_DL_VERSION).$(LINUX_DL_SUFFIX)
 LINUX_DL_FILE=$(DL_DIR)/$(LINUX_DL_BASENAME)-$(LINUX_DL_VERSION).$(LINUX_DL_SUFFIX)
@@ -35,7 +34,7 @@ LINUX_INSTALLED_HEADERS=$(LINUX_INSTALL_PREFIX)/include/linux
 
 MUSL_DL_PREFIX=https://www.musl-libc.org/releases
 MUSL_DL_BASENAME=musl
-MUSL_DL_VERSION=1.2.1
+MUSL_DL_VERSION=1.2.2
 MUSL_DL_SUFFIX=tar.gz
 MUSL_DL_URL=$(MUSL_DL_PREFIX)/$(MUSL_DL_BASENAME)-$(MUSL_DL_VERSION).$(MUSL_DL_SUFFIX)
 MUSL_DL_FILE=$(DL_DIR)/$(MUSL_DL_BASENAME)-$(MUSL_DL_VERSION).$(MUSL_DL_SUFFIX)
@@ -44,7 +43,7 @@ MUSL_TARGET=$(MUSL_BUILD_DIR)/lib/libc.so
 
 BUSYBOX_DL_PREFIX=https://busybox.net/downloads
 BUSYBOX_DL_BASENAME=busybox
-BUSYBOX_DL_VERSION=1.31.0
+BUSYBOX_DL_VERSION=1.34.0
 BUSYBOX_DL_SUFFIX=tar.bz2
 BUSYBOX_DL_URL=$(BUSYBOX_DL_PREFIX)/$(BUSYBOX_DL_BASENAME)-$(BUSYBOX_DL_VERSION).$(BUSYBOX_DL_SUFFIX)
 BUSYBOX_DL_FILE=$(DL_DIR)/$(BUSYBOX_DL_BASENAME)-$(BUSYBOX_DL_VERSION).$(BUSYBOX_DL_SUFFIX)
@@ -74,56 +73,62 @@ pre: $(DL_DIR) $(BUILD_DIR) $(ROOTFS_DIR) $(LINUX_BUILD_DIR) $(MUSL_BUILD_DIR) $
 $(LINUX_DL_FILE):
 ifeq ($(LINUX_LOCAL),)
 	wget '$(LINUX_DL_URL)' -O '$@' || (rm -f '$(LINUX_DL_FILE)' && false)
+	touch -a -m '$(LINUX_DL_FILE)'
 endif
 
 $(MUSL_DL_FILE):
 	wget '$(MUSL_DL_URL)' -O '$@' || (rm -f '$(MUSL_DL_FILE)' && false)
+	touch -a -m '$(MUSL_DL_FILE)'
 
 $(BUSYBOX_DL_FILE):
 	wget '$(BUSYBOX_DL_URL)' -O '$@' || (rm -f '$(BUSYBOX_DL_FILE)' && false)
+	touch -a -m '$(BUSYBOX_DL_FILE)'
 
 dl: pre $(LINUX_DL_FILE) $(MUSL_DL_FILE) $(BUSYBOX_DL_FILE)
 
-$(LINUX_BUILD_DIR)/Makefile:
+$(LINUX_BUILD_DIR)/Makefile: $(LINUX_DL_FILE)
 ifeq ($(LINUX_LOCAL),)
 	tar --strip-components=1 -C '$(LINUX_BUILD_DIR)' -xvf '$(LINUX_DL_FILE)' >/dev/null || (rm -rf '$(LINUX_BUILD_DIR)' && false)
+	touch -a -m '$(LINUX_BUILD_DIR)/Makefile'
 else
 	rmdir '$(LINUX_BUILD_DIR)'
 	ln -s '$(LINUX_LOCAL)' '$(LINUX_BUILD_DIR)'
 endif
 
-$(MUSL_BUILD_DIR)/Makefile:
+$(MUSL_BUILD_DIR)/Makefile: $(MUSL_DL_FILE)
 	tar --strip-components=1 -C '$(MUSL_BUILD_DIR)' -xvzf '$(MUSL_DL_FILE)' >/dev/null || (rm -rf '$(MUSL_BUILD_DIR)' && false)
+	touch -a -m '$(MUSL_BUILD_DIR)/Makefile'
 
-$(BUSYBOX_BUILD_DIR)/Makefile:
+$(BUSYBOX_BUILD_DIR)/Makefile: $(BUSYBOX_DL_FILE)
 	tar --strip-components=1 -C '$(BUSYBOX_BUILD_DIR)' -xvjf '$(BUSYBOX_DL_FILE)' >/dev/null || (rm -rf '$(BUSYBOX_BUILD_DIR)' && false)
+	touch -a -m '$(BUSYBOX_BUILD_DIR)/Makefile'
 
 extract: dl $(LINUX_BUILD_DIR)/Makefile $(MUSL_BUILD_DIR)/Makefile $(BUSYBOX_BUILD_DIR)/Makefile
 
-$(LINUX_TARGET):
+$(LINUX_TARGET): $(LINUX_BUILD_DIR)/Makefile
 	cp -v '$(CFG_DIR)/linux.config' '$(LINUX_BUILD_DIR)/.config'
 ifneq ($(DEFCONFIG),y)
-	make -C '$(LINUX_BUILD_DIR)' oldconfig
+	$(MAKE) -C '$(LINUX_BUILD_DIR)' oldconfig
 else
-	make -C '$(LINUX_BUILD_DIR)' x86_64_defconfig
+	$(MAKE) -C '$(LINUX_BUILD_DIR)' x86_64_defconfig
 endif
-	-make -C '$(LINUX_BUILD_DIR)' kvmconfig
-	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' bzImage
+	-$(MAKE) -C '$(LINUX_BUILD_DIR)' kvm_guest.config
+	$(MAKE) -C '$(LINUX_BUILD_DIR)' ARCH='$(ARCH)' bzImage
 
 $(LINUX_INSTALLED_MODULES): $(LINUX_TARGET)
 ifneq ($(NO_MODULES),y)
-	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' INSTALL_MOD_PATH='$(ROOTFS_DIR)/usr' modules
-	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' INSTALL_MOD_PATH='$(ROOTFS_DIR)/usr' modules_install
+	$(MAKE) -C '$(LINUX_BUILD_DIR)' ARCH='$(ARCH)' INSTALL_MOD_PATH='$(ROOTFS_DIR)/usr' modules
+	$(MAKE) -C '$(LINUX_BUILD_DIR)' ARCH='$(ARCH)' INSTALL_MOD_PATH='$(ROOTFS_DIR)/usr' modules_install
 endif
 
 $(LINUX_INSTALLED_HEADERS): $(LINUX_TARGET)
-	make -C '$(LINUX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' INSTALL_HDR_PATH='$(ROOTFS_DIR)/usr' headers_install
+	$(MAKE) -C '$(LINUX_BUILD_DIR)' ARCH='$(ARCH)' INSTALL_HDR_PATH='$(ROOTFS_DIR)/usr' headers_install
 
 $(MUSL_TARGET): $(LINUX_INSTALLED_HEADERS)
 	rm -f $(MUSL_TARGET)
 	cd '$(MUSL_BUILD_DIR)' && (test -r ./config.mak || ./configure --prefix='$(ROOTFS_DIR)/usr' --enable-wrapper=yes)
-	make -C '$(MUSL_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' V=1 all
-	make -C '$(MUSL_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' install
+	$(MAKE) -C '$(MUSL_BUILD_DIR)' ARCH='$(ARCH)' V=1 all
+	$(MAKE) -C '$(MUSL_BUILD_DIR)' ARCH='$(ARCH)' install
 	test -e '$(ROOTFS_DIR)/lib' || ln -sr '$(ROOTFS_DIR)/usr/lib' '$(ROOTFS_DIR)/lib'
 	test -e '$(ROOTFS_DIR)/lib/ld-musl-$(ARCH).so.1' || ln -sr '$(ROOTFS_DIR)/lib/libc.so' '$(ROOTFS_DIR)/lib/ld-musl-$(ARCH).so.1'
 	rm '$(ROOTFS_DIR)/usr/bin/musl-gcc' '$(ROOTFS_DIR)/lib/musl-gcc.specs'
@@ -131,16 +136,16 @@ $(MUSL_TARGET): $(LINUX_INSTALLED_HEADERS)
 $(BUSYBOX_TARGET): $(MUSL_TARGET) $(LINUX_INSTALLED_HEADERS)
 	cp -v '$(CFG_DIR)/busybox.config' '$(BUSYBOX_BUILD_DIR)/.config'
 ifneq ($(DEFCONFIG),y)
-	make -C '$(BUSYBOX_BUILD_DIR)' oldconfig
+	$(MAKE) -C '$(BUSYBOX_BUILD_DIR)' oldconfig
 else
-	make -C '$(BUSYBOX_BUILD_DIR)' defconfig
+	$(MAKE) -C '$(BUSYBOX_BUILD_DIR)' defconfig
 endif
 	test -r '$(MUSL_BUILD_DIR)/lib/musl-gcc.specs'
 	sed -i 's,^\(CONFIG_EXTRA_CFLAGS[ ]*=\).*,\1"$(BUSYBOX_CFLAGS)",g'   '$(BUSYBOX_BUILD_DIR)/.config'
 	sed -i 's,^\(CONFIG_EXTRA_LDFLAGS[ ]*=\).*,\1"$(BUSYBOX_LDFLAGS)",g' '$(BUSYBOX_BUILD_DIR)/.config'
 	sed -i 's,^\(CONFIG_PREFIX[ ]*=\).*,\1"$(ROOTFS_DIR)",g'             '$(BUSYBOX_BUILD_DIR)/.config'
-	make -C '$(BUSYBOX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' V=1 all
-	make -C '$(BUSYBOX_BUILD_DIR)' -j$(BUILDJOBS) ARCH='$(ARCH)' install
+	$(MAKE) -C '$(BUSYBOX_BUILD_DIR)' ARCH='$(ARCH)' V=1 all
+	$(MAKE) -C '$(BUSYBOX_BUILD_DIR)' ARCH='$(ARCH)' install
 
 build: extract $(LINUX_TARGET) $(LINUX_INSTALLED_MODULES) $(MUSL_TARGET) $(BUSYBOX_TARGET)
 
@@ -150,10 +155,6 @@ $(INITRD_TARGET): $(LINUX_TARGET) $(LINUX_INSTALLED_MODULES) $(MUSL_TARGET) $(BU
 
 image: build $(INITRD_TARGET)
 
-define DO_BUILD
-	make
-endef
-
 force-remove:
 	rm -f $(LINUX_TARGET) $(MUSL_TARGET) $(BUSYBOX_TARGET)
 	rm -rf $(LINUX_INSTALLED_HEADERS) $(LINUX_INSTALLED_MODULES)
@@ -161,11 +162,11 @@ force-remove:
 
 image-rebuild: force-remove
 	rm -rf '$(ROOTFS_DIR)'
-	$(DO_BUILD)
+	$(MAKE) image
 
 image-repack:
 	rm -f '$(INITRD_TARGET)'
-	$(DO_BUILD)
+	$(MAKE) image
 
 net:
 	sudo ip tuntap add $(NET_QEMU_TAP) mode tap
@@ -246,6 +247,5 @@ help:
 	$(call HELP_PREFIX_OPTS,KEYMAP=$(KEYMAP),set a keymap which the init script tries to load)
 	$(call HELP_PREFIX_OPTS,LINUX_LOCAL=$(LINUX_LOCAL),set a custom linux source directory)
 	$(call HELP_PREFIX_OPTS,DEFCONFIG=$(DEFCONFIG),use linux `make $(DEFCONFIG_NAME)` instead of `make oldconfig`)
-	$(call HELP_PREFIX_OPTS,BUILDJOBS=$(BUILDJOBS),set the maximum number of concurrent build jobs)
 
 .PHONY: all pre dl extract build image image-rebuild image-repack net qemu qemu-console qemu-serial qemu-serial-net qemu-net help
