@@ -231,6 +231,7 @@ help:
 	$(call HELP_PREFIX,image-rebuild,force recreation of rootfs)
 	$(call HELP_PREFIX,image-repack,force initramfs cpio archive recreation)
 	$(call HELP_PREFIX,net,prepare your network bridge for use with QEMU)
+	$(call HELP_PREFIX,net-clean,undo `make net`)
 	$(call HELP_PREFIX,qemu,test your kernel/initramfs combination with QEMU)
 	$(call HELP_PREFIX,qemu-console,test your kernel/initramfs combination with [n]curses QEMU)
 	$(call HELP_PREFIX,qemu-serial,test your kernel/initramfs combination using a serial console with QEMU)
@@ -246,6 +247,6 @@ help:
 	$(call HELP_PREFIX_OPTS,NET_HWADDR=$(NET_HWADDR),set mac address for the qemu guest)
 	$(call HELP_PREFIX_OPTS,KEYMAP=$(KEYMAP),set a keymap which the init script tries to load)
 	$(call HELP_PREFIX_OPTS,LINUX_LOCAL=$(LINUX_LOCAL),set a custom linux source directory)
-	$(call HELP_PREFIX_OPTS,DEFCONFIG=$(DEFCONFIG),use linux `make $(DEFCONFIG_NAME)` instead of `make oldconfig`)
+	$(call HELP_PREFIX_OPTS,DEFCONFIG=$(DEFCONFIG),use linux `make defconfig` instead of `make oldconfig`)
 
 .PHONY: all pre dl extract build image image-rebuild image-repack net qemu qemu-console qemu-serial qemu-serial-net qemu-net help

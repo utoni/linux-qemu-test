@@ -1,0 +1,35 @@
+name: Build
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+    types: [opened, synchronize, reopened]
+  release:
+    types: [created]
+jobs:
+  test:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        os: ["ubuntu-latest"]
+        include:
+          - compiler: "gcc"
+            os: "ubuntu-latest"
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Install Ubuntu Prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install coreutils make autoconf automake build-essential libelf-dev gettext flex bison
+          sudo apt-get install ${{ matrix.compiler }}
+      - name: Build ALL
+        run: |
+          make DEFCONFIG=y
