@@ -2,13 +2,16 @@ name: Build
 on:
   push:
     branches:
-      - master
+      - main
   pull_request:
     branches:
-      - master
+      - main
     types: [opened, synchronize, reopened]
   release:
     types: [created]
+  schedule:
+    - cron: "0 13 * * 1"
+
 jobs:
   test:
     name: ${{ matrix.os }}
