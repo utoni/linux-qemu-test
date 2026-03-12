@@ -35,4 +35,4 @@ jobs:
           sudo apt-get install ${{ matrix.compiler }}
       - name: Build ALL
         run: |
-          make DEFCONFIG=y
+          make
